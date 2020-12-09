@@ -1,5 +1,5 @@
 /*
-       Copyright 2017-2020 IBM Corp All Rights Reserved
+       Copyright 2020 IBM Corp All Rights Reserved
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -14,17 +14,15 @@
    limitations under the License.
  */
 
-package com.ibm.hybrid.cloud.sample.stocktrader.portfolio;
+package com.ibm.hybrid.cloud.sample.stocktrader.account;
 
-import com.ibm.hybrid.cloud.sample.stocktrader.portfolio.client.ODMClient;
-import com.ibm.hybrid.cloud.sample.stocktrader.portfolio.client.WatsonClient;
-import com.ibm.hybrid.cloud.sample.stocktrader.portfolio.json.Feedback;
-import com.ibm.hybrid.cloud.sample.stocktrader.portfolio.json.LoyaltyChange;
-import com.ibm.hybrid.cloud.sample.stocktrader.portfolio.json.ODMLoyaltyRule;
-import com.ibm.hybrid.cloud.sample.stocktrader.portfolio.json.Portfolio;
-import com.ibm.hybrid.cloud.sample.stocktrader.portfolio.json.StockPurchase;
-import com.ibm.hybrid.cloud.sample.stocktrader.portfolio.json.WatsonInput;
-import com.ibm.hybrid.cloud.sample.stocktrader.portfolio.json.WatsonOutput;
+import com.ibm.hybrid.cloud.sample.stocktrader.account.client.ODMClient;
+import com.ibm.hybrid.cloud.sample.stocktrader.account.client.WatsonClient;
+import com.ibm.hybrid.cloud.sample.stocktrader.account.json.Feedback;
+import com.ibm.hybrid.cloud.sample.stocktrader.account.json.LoyaltyChange;
+import com.ibm.hybrid.cloud.sample.stocktrader.account.json.ODMLoyaltyRule;
+import com.ibm.hybrid.cloud.sample.stocktrader.account.json.WatsonInput;
+import com.ibm.hybrid.cloud.sample.stocktrader.account.json.WatsonOutput;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -65,8 +63,8 @@ import javax.naming.NamingException;
 import javax.servlet.http.HttpServletRequest;
 
 
-public class PortfolioUtilities {
-	private static Logger logger = Logger.getLogger(PortfolioUtilities.class.getName());
+public class AccountUtilities {
+	private static Logger logger = Logger.getLogger(AccountUtilities.class.getName());
 
 	private static final String NOTIFICATION_Q   = "jms/Portfolio/NotificationQueue";
 	private static final String NOTIFICATION_QCF = "jms/Portfolio/NotificationQueueConnectionFactory";
@@ -214,48 +212,6 @@ public class PortfolioUtilities {
 		connection.close();
 
 		logger.info("JMS Message sent successfully!");
-	}
-
-	/** Send a message to IBM Event Streams via the Kafka APIs */
-	/*  TODO: Replace this with mpReactiveMessaging */
-	@Traced
-	void invokeKafka(Portfolio portfolio, String symbol, int shares, double commission, String kafkaAddress, String kafkaTopic) {
-		if ((kafkaAddress == null) || kafkaAddress.isEmpty()) {
-			logger.info("Kafka provider not configured, so not sending Kafka message about this stock trade");
-			return; //only do the following if Kafka is configured
-		}
-
-		logger.info("Preparing to send a Kafka message");
-
-		try {
-			if (kafkaProducer == null) kafkaProducer = new EventStreamsProducer(kafkaAddress, kafkaTopic);
-
-			Date now = new Date();
-			if (timestampFormatter == null) timestampFormatter = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss.SSS");
-			String when = timestampFormatter.format(now);
-
-			double price = -1;
-			String owner = portfolio.getOwner();
-			JsonObject stocks = portfolio.getStocks();
-			JsonObject stock = (stocks!=null) ? stocks.getJsonObject(symbol) : null;
-
-			if (stock != null) { //rather than calling stock-quote again, get it from the portfolio we just built
-				price = stock.getJsonNumber("price").doubleValue();
-			} else {
-				logger.warning("Unable to get the stock price.  Skipping sending the StockPurchase to Kafka");
-				return; //nothing to send if we can't look up the stock price
-			}
-
-			String tradeID = UUID.randomUUID().toString();
-			StockPurchase purchase = new StockPurchase(tradeID, owner, symbol, shares, price, when, commission);
-			String message = purchase.toString();
-
-			kafkaProducer.produce(message); //publish the serialized JSON to our Kafka topic in IBM Event Streams
-			logger.info("Delivered message to Kafka: "+message);
-		} catch (Throwable t) {
-			logger.warning("Failure sending message to Kafka");
-			logException(t);
-		} 
 	}
 
 	double getCommission(String loyalty) {

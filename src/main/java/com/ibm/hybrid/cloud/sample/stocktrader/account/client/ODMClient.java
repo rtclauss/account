@@ -1,5 +1,5 @@
 /*
-       Copyright 2017 IBM Corp All Rights Reserved
+       Copyright 2020 IBM Corp All Rights Reserved
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -14,9 +14,9 @@
    limitations under the License.
  */
 
-package com.ibm.hybrid.cloud.sample.stocktrader.portfolio.client;
+package com.ibm.hybrid.cloud.sample.stocktrader.account.client;
 
-import com.ibm.hybrid.cloud.sample.stocktrader.portfolio.json.ODMLoyaltyRule;
+import com.ibm.hybrid.cloud.sample.stocktrader.account.json.ODMLoyaltyRule;
 import javax.enterprise.context.Dependent;
 import javax.ws.rs.ApplicationPath;
 import javax.ws.rs.Consumes;
