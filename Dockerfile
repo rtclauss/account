@@ -32,12 +32,15 @@ ARG extract_keycloak_cert
 USER root
 COPY src/main/liberty/config /opt/ol/wlp/usr/servers/defaultServer/
 
-# This script will add the requested XML snippets to enable Liberty features and grow image to be fit-for-purpose using featureUtility. 
+# This script will add the requested XML snippets to enable Liberty features and grow image to be fit-for-purpose using featureUtility.
 # Only available in 'kernel-slim'. The 'full' tag already includes all features for convenience.
 RUN features.sh
 
 COPY --from=build /usr/target/account-1.0-SNAPSHOT.war /opt/ol/wlp/usr/servers/defaultServer/apps/Account.war
-COPY --from=build /usr/target/prereqs/wmq.jmsra-9.2.1.0.rar /opt/ol/wlp/usr/servers/defaultServer/wmq.jmsra.rar  
+COPY --from=build /usr/target/prereqs/wmq.jmsra-9.2.1.0.rar /opt/ol/wlp/usr/servers/defaultServer/wmq.jmsra.rar
+COPY --from=build /usr/target/prereqs/cloudant-* /opt/ol/wlp/usr/servers/defaultServer/
+COPY --from=build /usr/target/prereqs/commons-* /opt/ol/wlp/usr/servers/defaultServer/
+COPY --from=build /usr/target/prereqs/gson-* /opt/ol/wlp/usr/servers/defaultServer/
 COPY --from=cert-extractor /keycloak.pem /tmp/keycloak.pem
 RUN chown -R 1001:0 config/
 USER 1001
