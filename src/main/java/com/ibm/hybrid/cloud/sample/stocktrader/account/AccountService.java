@@ -91,7 +91,7 @@ public class AccountService extends Application {
 	private static boolean initialized = false;
 	private static boolean staticInitialized = false;
 
-	private static HashMap<String, Account> accountData = null;
+	private static HashMap<String, Account> accountData = new HashMap<String, Account>();
 
 	private AccountUtilities utilities = new AccountUtilities();
 
