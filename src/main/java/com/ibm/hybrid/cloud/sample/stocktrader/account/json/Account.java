@@ -1,5 +1,5 @@
 /*
-       Copyright 2020 IBM Corp All Rights Reserved
+       Copyright 2020-2021 IBM Corp All Rights Reserved
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ package com.ibm.hybrid.cloud.sample.stocktrader.account.json;
 
 /** JSON-B POJO class representing an Account JSON object */
 public class Account {
+    private String _id;
+    private String _rev;
     private String owner;
     private String loyalty;
     private double balance;
@@ -45,12 +47,29 @@ public class Account {
         setNextCommission(initialNextCommission);
     }
 
+    public String get_id() {
+        return _id;
+    }
+
+    public void set_id(String new_id) {
+        _id = new_id;
+    }
+
+    public String get_rev() {
+        return _rev;
+    }
+
+    public void set_rev(String new_rev) {
+        _rev = new_rev;
+    }
+
     public String getOwner() {
         return owner;
     }
 
     public void setOwner(String newOwner) {
         owner = newOwner;
+        set_id(newOwner);
     }
 
     public String getLoyalty() {
@@ -108,8 +127,8 @@ public class Account {
    }
 
     public String toString() {
-        return "{\"owner\": \""+owner+"\", \"loyalty\": \""+loyalty+"\", \"balance\": "+balance
-               +", \"commissions\": "+commissions+", \"free\": "+free+", \"nextCommission\": "+nextCommission
-               +", \"sentiment\": \""+sentiment+"\"}";
+        return "{\"_id\": \""+_id+"\", \"_rev\": \""+_rev+"\", \"owner\": \""+owner+"\", \"loyalty\": \""+loyalty
+               +"\", \"balance\": "+balance+", \"commissions\": "+commissions+", \"free\": "+free
+               +", \"nextCommission\": "+nextCommission+", \"sentiment\": \""+sentiment+"\"}";
     }
 }
