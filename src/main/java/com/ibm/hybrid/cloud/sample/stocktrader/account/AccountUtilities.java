@@ -70,6 +70,7 @@ public class AccountUtilities {
 	private static final String NOTIFICATION_QCF = "jms/Portfolio/NotificationQueueConnectionFactory";
 
 	private boolean initialized = false;
+	private boolean odmBroken   = false; //used to only report failures of calls to ODM once, rather than every time
 
 	//Our ODM rule will return its own values for levels, generally in all caps
 	private static final String BASIC    = "Basic";
@@ -115,14 +116,20 @@ public class AccountUtilities {
 			String credentials = odmId+":"+odmPwd;
 			String basicAuth = "Basic "+Base64.getEncoder().encode(credentials.getBytes());
 
-			//call the LoyaltyLevel business rule to get the current loyalty level of this portfolio
-			logger.info("Calling loyalty-level ODM business rule for "+owner);
-			ODMLoyaltyRule result = odmClient.getLoyaltyLevel(basicAuth, input);
+			try {
+				//call the LoyaltyLevel business rule to get the current loyalty level of this portfolio
+				logger.info("Calling loyalty-level ODM business rule for "+owner);
+				ODMLoyaltyRule result = odmClient.getLoyaltyLevel(basicAuth, input);
 
-			loyalty = result.determineLoyalty();
-			logger.info("New loyalty level for "+owner+" is "+loyalty);
+				loyalty = result.determineLoyalty();
+				logger.info("New loyalty level for "+owner+" is "+loyalty);
+			} catch (Throwable t) {
+				logger.info("Error invoking ODM:" + t.getClass().getName() + ": "+t.getMessage() + ".  Loyalty level will remain unchanged.");
+				if (!odmBroken) logException(t);
+				odmBroken = true; //so logs aren't full of this stack trace on every getAccount
+			}
 
-			if (oldLoyalty == null) return loyalty;
+			if ((oldLoyalty==null) || (loyalty==null)) return loyalty;
 			if (!oldLoyalty.equalsIgnoreCase(loyalty)) try {
 				logger.info("Change in loyalty level detected.");
 

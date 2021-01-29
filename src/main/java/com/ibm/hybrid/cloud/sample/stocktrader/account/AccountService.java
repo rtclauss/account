@@ -14,8 +14,9 @@
    limitations under the License.
  */
 
-// TODO: Using an in-memory HashMap temporarily - will switch to Cloudant shortly
 package com.ibm.hybrid.cloud.sample.stocktrader.account;
+
+import com.cloudant.client.api.Database;
 
 import com.ibm.hybrid.cloud.sample.stocktrader.account.client.ODMClient;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.client.WatsonClient;
@@ -34,6 +35,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 //CDI 2.0
+import javax.annotation.Resource;
 import javax.inject.Inject;
 import javax.enterprise.context.RequestScoped;
 
@@ -84,14 +86,15 @@ import javax.ws.rs.WebApplicationException;
 public class AccountService extends Application {
 	private static Logger logger = Logger.getLogger(AccountService.class.getName());
 
-	private static final double ERROR            = -1.0;
-	private static final int    CONFLICT         = 409;         //odd that JAX-RS has no ConflictException
-	private static final String FAIL             = "FAIL";      //trying to create a portfolio with this name will always throw a 400
+	private static final double ERROR    = -1.0;
+	private static final int    CONFLICT = 409;         //odd that JAX-RS has no ConflictException
+	private static final String FAIL     = "FAIL";      //trying to create an account with this name will always throw a 400
+	private static final String DELAY    = "com.ibm.hybrid.cloud.sample.stocktrader.account.delayUpdate";
 
 	private static boolean initialized = false;
 	private static boolean staticInitialized = false;
 
-	private static HashMap<String, Account> accountData = new HashMap<String, Account>();
+	@Resource(lookup="cloudant/AccountDB") Database accountDB;  //defined in the server.xml
 
 	private AccountUtilities utilities = new AccountUtilities();
 
@@ -130,18 +133,17 @@ public class AccountService extends Application {
 	@Path("/")
 	@Produces(MediaType.APPLICATION_JSON)
 //	@RolesAllowed({"StockTrader", "StockViewer"}) //Couldn't get this to work; had to do it through the web.xml instead :(
-	public Account[] getAccounts() {
-		Account[] accountArray = null;
+	public Account[] getAccounts() throws IOException {
+		List<Account> accountList = accountDB.getAllDocsRequestBuilder().includeDocs(true).build().getResponse().getDocsAs(Account.class);
+		int size = accountList.size();
+		Account[] accountArray = new Account[size];
+		accountArray = accountList.toArray(accountArray);
 
-		Collection<Account> accounts = accountData.values();
-		if (accounts!=null) {
-			accountArray = new Account[accountData.size()];
-			Iterator<Account> iter = accounts.iterator();
-			for (int index=0; iter.hasNext(); index++) {
-				accountArray[index] = iter.next();
-			}
+		System.out.println("Returning "+size+" accounts");
+		for (int index=0; index<size; index++) {
+			Account account = accountArray[index];
+			System.out.println("account["+index+"]="+account);
 		}
-
 		return accountArray;
 	}
 
@@ -157,15 +159,15 @@ public class AccountService extends Application {
 				logger.warning("Throwing a 400 error for owner: "+owner);
 				throw new BadRequestException("Invalid value for account owner: "+owner);
 			}
-			Account existing = accountData.get(owner);
+			boolean alreadyExists = accountDB.contains(owner);
 
-			if (existing == null) {
+			if (!alreadyExists) {
 				//loyalty="Basic", balance=50.0, commissions=0.0, free=0, sentiment="Unknown", nextCommission=9.99
 				account = new Account(owner, "Basic", 50.0, 0.0, 0, "Unknown", 9.99);
 
 				logger.info("Creating account for "+owner);
 
-				accountData.put(owner, account);
+				accountDB.save(account);
 			} else {
 				logger.warning("Account already exists for: "+owner);
 				throw new WebApplicationException("Account already exists for "+owner+"!", CONFLICT);			
@@ -182,21 +184,23 @@ public class AccountService extends Application {
 	@Produces(MediaType.APPLICATION_JSON)
 //	@RolesAllowed({"StockTrader", "StockViewer"}) //Couldn't get this to work; had to do it through the web.xml instead :(
 	public Account getAccount(@PathParam("owner") String owner, @QueryParam("total") double total, @Context HttpServletRequest request) throws IOException {
-		Account account = accountData.get(owner);
+		Account account = accountDB.find(Account.class, owner);
 		if (account != null) {
 			if (total != ERROR) {
 				String oldLoyalty = account.getLoyalty();
 
 				String loyalty = utilities.invokeODM(odmClient, odmId, odmPwd, owner, total, oldLoyalty, request);
-				account.setLoyalty(loyalty);
+				if (!oldLoyalty.equalsIgnoreCase(loyalty)) { //don't rev the Cloudant doc if nothing's changed
+					account.setLoyalty(loyalty);
 
-				int free = account.getFree();
-				account.setNextCommission(free>0 ? 0.0 : utilities.getCommission(loyalty));
+					int free = account.getFree();
+					account.setNextCommission(free>0 ? 0.0 : utilities.getCommission(loyalty));
 
-				accountData.put(owner, account);
+					if (!delayUpdate(request)) accountDB.update(account); //if called from updateAccount, let it drive the update to Cloudant
+				}
 			}
 
-			logger.info("Returning "+account.toString());
+			logger.fine("Returning "+account.toString());
 		} else {
 			logger.warning("No account found for "+owner);
 		}
@@ -209,6 +213,7 @@ public class AccountService extends Application {
 	@Produces(MediaType.APPLICATION_JSON)
 //	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
 	public Account updateAccount(@PathParam("owner") String owner, @QueryParam("total") double total, @Context HttpServletRequest request) throws IOException {
+		request.setAttribute(DELAY, true); //used by delayUpdate()
 		Account account = getAccount(owner, total, request); //this computes new loyalty, etc.
 
 		if (account!=null) {
@@ -235,7 +240,8 @@ public class AccountService extends Application {
 				account.setBalance(balance);
 			}
 
-			accountData.put(owner, account);
+			logger.fine("Updating account into Cloudant: "+account);
+			accountDB.update(account);
 		}
 
 		return account;
@@ -246,7 +252,9 @@ public class AccountService extends Application {
 	@Produces(MediaType.APPLICATION_JSON)
 //	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
 	public Account deleteAccount(@PathParam("owner") String owner) {
-		Account account = accountData.remove(owner);
+		Account account = accountDB.find(Account.class, owner);
+
+		accountDB.remove(account);
 
 		logger.info("Successfully deleted portfolio for "+owner);
 
@@ -280,22 +288,8 @@ public class AccountService extends Application {
 		return feedback;
 	}
 
-	private static void staticInitialize() {
-		if (!staticInitialized) {
-			logger.info("Obtaining HashMap");
-
-			accountData = new HashMap();
-
-			logger.info("HashMap successfully obtained!"); //exception would have occurred otherwise
-
-			staticInitialized = true;
-		}
-	}
-
 	@Traced
 	private void initialize() {
-		if (!staticInitialized) staticInitialize();
-
 		if (watsonId != null) {
 			logger.info("Watson initialization completed successfully!");
 		} else {
@@ -308,5 +302,18 @@ public class AccountService extends Application {
 			logger.warning("ODM_ID config property is null");
 		}
 		initialized = true;
+	}
+
+	//This so that when getAccount is called from updateAccount, we don't drive two updates to Cloudant, which causes a 409
+	private boolean delayUpdate(HttpServletRequest request) {
+		boolean delay = false;
+		Object attribute = request.getAttribute(DELAY);
+		if (attribute!=null) {
+			if (attribute instanceof Boolean) {
+				Boolean wrapper = (Boolean) attribute;
+				delay = wrapper.booleanValue();
+			}
+		}
+		return delay;
 	}
 }
