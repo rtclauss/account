@@ -86,6 +86,9 @@ public class AccountUtilities {
 
 	private static EventStreamsProducer kafkaProducer = null;
 
+	private static final String mqId = System.getenv("MQ_ID");
+	private static final String mqPwd = System.getenv("MQ_PASSWORD");
+
 	@Traced
 	private void initialize() throws NamingException {
 		if (!initialized) try {
@@ -201,7 +204,7 @@ public class AccountUtilities {
 
 		logger.info("Preparing to send a JMS message");
 
-		QueueConnection connection = queueCF.createQueueConnection();
+		QueueConnection connection = queueCF.createQueueConnection(mqId, mqPwd);
 		QueueSession session = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
 
 		String contents = json.toString();
