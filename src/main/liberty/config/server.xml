@@ -1,5 +1,5 @@
 <!--
-       Copyright 2020 IBM Corp All Rights Reserved
+       Copyright 2020-2021 IBM Corp All Rights Reserved
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 <server description="Account server">
     <featureManager>
-        <feature>microProfile-3.3</feature>
+        <feature>microProfile-4.0</feature>
         <feature>jms-2.0</feature>
         <feature>jca-1.7</feature>
         <feature>jndi-1.0</feature>
