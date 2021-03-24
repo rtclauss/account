@@ -1,5 +1,5 @@
 /*
-       Copyright 2020 IBM Corp All Rights Reserved
+       Copyright 2020-2021 IBM Corp All Rights Reserved
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -105,8 +105,6 @@ public class AccountService extends Application {
 	private @Inject @ConfigProperty(name = "ODM_PWD", defaultValue = "odmAdmin") String odmPwd;
 	private @Inject @ConfigProperty(name = "WATSON_ID", defaultValue = "apikey") String watsonId;
 	private @Inject @ConfigProperty(name = "WATSON_PWD") String watsonPwd; //if using an API Key, it goes here
-	private @Inject @ConfigProperty(name = "KAFKA_TOPIC", defaultValue = "stocktrader") String kafkaTopic;
-	private @Inject @ConfigProperty(name = "KAFKA_ADDRESS", defaultValue = "") String kafkaAddress;
 
 	// Override ODM Client URL if secret is configured to provide URL
 	static {
