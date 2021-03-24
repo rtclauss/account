@@ -1,5 +1,5 @@
 /*
-       Copyright 2020 IBM Corp All Rights Reserved
+       Copyright 2020-2021 IBM Corp All Rights Reserved
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -83,8 +83,6 @@ public class AccountUtilities {
 	private static QueueConnectionFactory queueCF = null;
 
 	private static SimpleDateFormat timestampFormatter = null;
-
-	private static EventStreamsProducer kafkaProducer = null;
 
 	private static final String mqId = System.getenv("MQ_ID");
 	private static final String mqPwd = System.getenv("MQ_PASSWORD");
