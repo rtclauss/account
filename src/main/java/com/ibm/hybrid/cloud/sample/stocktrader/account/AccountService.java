@@ -137,10 +137,10 @@ public class AccountService extends Application {
 		Account[] accountArray = new Account[size];
 		accountArray = accountList.toArray(accountArray);
 
-		System.out.println("Returning "+size+" accounts");
-		for (int index=0; index<size; index++) {
+		logger.info("Returning "+size+" accounts");
+		if (logger.isLoggable(Logger.FINE) for (int index=0; index<size; index++) {
 			Account account = accountArray[index];
-			System.out.println("account["+index+"]="+account);
+			logger.fine("account["+index+"]="+account);
 		}
 		return accountArray;
 	}
@@ -171,7 +171,7 @@ public class AccountService extends Application {
 				throw new WebApplicationException("Account already exists for "+owner+"!", CONFLICT);			
 			}
 
-			logger.info("Account created successfully");
+			logger.info("Account created successfully: "+owner);
 		}
 
 		return account;
@@ -188,7 +188,7 @@ public class AccountService extends Application {
 				String oldLoyalty = account.getLoyalty();
 
 				String loyalty = utilities.invokeODM(odmClient, odmId, odmPwd, owner, total, oldLoyalty, request);
-				if ((oldLoyalty!=null) && !oldLoyalty.equalsIgnoreCase(loyalty)) { //don't rev the Cloudant doc if nothing's changed
+				if ((loyalty!=null) && !loyalty.equalsIgnoreCase(oldLoyalty)) { //don't rev the Cloudant doc if nothing's changed
 					account.setLoyalty(loyalty);
 
 					int free = account.getFree();
