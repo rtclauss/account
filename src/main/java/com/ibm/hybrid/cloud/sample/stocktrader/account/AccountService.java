@@ -138,7 +138,7 @@ public class AccountService extends Application {
 		accountArray = accountList.toArray(accountArray);
 
 		logger.info("Returning "+size+" accounts");
-		if (logger.isLoggable(Logger.FINE) for (int index=0; index<size; index++) {
+		if (logger.isLoggable(Logger.FINE)) for (int index=0; index<size; index++) {
 			Account account = accountArray[index];
 			logger.fine("account["+index+"]="+account);
 		}
