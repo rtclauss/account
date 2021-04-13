@@ -115,7 +115,7 @@ public class AccountUtilities {
 		ODMLoyaltyRule input = new ODMLoyaltyRule(overallTotal);
 		try {
 			String credentials = odmId+":"+odmPwd;
-			String basicAuth = "Basic "+Base64.getEncoder().encode(credentials.getBytes());
+			String basicAuth = "Basic "+Base64.getEncoder().encodeToString(credentials.getBytes());
 
 			try {
 				//call the LoyaltyLevel business rule to get the current loyalty level of this portfolio
