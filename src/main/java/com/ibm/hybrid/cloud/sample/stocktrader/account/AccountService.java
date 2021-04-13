@@ -188,7 +188,7 @@ public class AccountService extends Application {
 				String oldLoyalty = account.getLoyalty();
 
 				String loyalty = utilities.invokeODM(odmClient, odmId, odmPwd, owner, total, oldLoyalty, request);
-				if (!oldLoyalty.equalsIgnoreCase(loyalty)) { //don't rev the Cloudant doc if nothing's changed
+				if ((oldLoyalty!=null) && !oldLoyalty.equalsIgnoreCase(loyalty)) { //don't rev the Cloudant doc if nothing's changed
 					account.setLoyalty(loyalty);
 
 					int free = account.getFree();
