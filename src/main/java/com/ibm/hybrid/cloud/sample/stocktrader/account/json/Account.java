@@ -69,7 +69,6 @@ public class Account {
 
     public void setOwner(String newOwner) {
         owner = newOwner;
-        set_id(newOwner);
     }
 
     public String getLoyalty() {
