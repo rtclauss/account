@@ -181,10 +181,11 @@ public class AccountService extends Application {
 	@Path("/{owner}")
 	@Produces(MediaType.APPLICATION_JSON)
 //	@RolesAllowed({"StockTrader", "StockViewer"}) //Couldn't get this to work; had to do it through the web.xml instead :(
-	public Account getAccount(@PathParam("owner") String owner, @QueryParam("total") double total, @Context HttpServletRequest request) throws IOException {
-		Account account = accountDB.find(Account.class, owner);
+	public Account getAccount(@PathParam("id") String id, @QueryParam("total") double total, @Context HttpServletRequest request) throws IOException {
+		Account account = accountDB.find(Account.class, id);
 		if (account != null) {
 			if (total != ERROR) {
+				String owner = account.getOwner();
 				String oldLoyalty = account.getLoyalty();
 
 				String loyalty = utilities.invokeODM(odmClient, odmId, odmPwd, owner, total, oldLoyalty, request);
@@ -200,7 +201,7 @@ public class AccountService extends Application {
 
 			logger.fine("Returning "+account.toString());
 		} else {
-			logger.warning("No account found for "+owner);
+			logger.warning("No account found for "+id);
 		}
 
 		return account;
@@ -210,11 +211,12 @@ public class AccountService extends Application {
 	@Path("/{owner}")
 	@Produces(MediaType.APPLICATION_JSON)
 //	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
-	public Account updateAccount(@PathParam("owner") String owner, @QueryParam("total") double total, @Context HttpServletRequest request) throws IOException {
+	public Account updateAccount(@PathParam("id") String id, @QueryParam("total") double total, @Context HttpServletRequest request) throws IOException {
 		request.setAttribute(DELAY, true); //used by delayUpdate()
-		Account account = getAccount(owner, total, request); //this computes new loyalty, etc.
+		Account account = getAccount(id, total, request); //this computes new loyalty, etc.
 
 		if (account!=null) {
+			String owner = account.getOwner();
 			String loyalty = account.getLoyalty();
 
 			double commission = utilities.getCommission(loyalty);
@@ -249,12 +251,15 @@ public class AccountService extends Application {
 	@Path("/{owner}")
 	@Produces(MediaType.APPLICATION_JSON)
 //	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
-	public Account deleteAccount(@PathParam("owner") String owner) {
-		Account account = accountDB.find(Account.class, owner);
+	public Account deleteAccount(@PathParam("id") String id) {
+		Account account = accountDB.find(Account.class, id);
 
-		accountDB.remove(account);
+		if (account != null) {
+			accountDB.remove(account);
 
-		logger.info("Successfully deleted portfolio for "+owner);
+			String owner = account.getOwner();
+			logger.info("Successfully deleted portfolio for "+owner);
+		}
 
 		return account; //maybe this method should return void instead?
 	}
@@ -264,7 +269,7 @@ public class AccountService extends Application {
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
 //	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
-	public Feedback submitFeedback(@PathParam("owner") String owner, WatsonInput input, @Context HttpServletRequest request) throws IOException {
+	public Feedback submitFeedback(@PathParam("id") String id, WatsonInput input, @Context HttpServletRequest request) throws IOException {
 		String sentiment = "Unknown";
 		try {
 			initialize();
@@ -273,7 +278,7 @@ public class AccountService extends Application {
 			t.printStackTrace();
 		}
 
-		Account account = getAccount(owner, ERROR, request);
+		Account account = getAccount(id, ERROR, request);
 		int freeTrades = account.getFree();
 
 		Feedback feedback = utilities.invokeWatson(watsonClient, watsonId, watsonPwd, input);
