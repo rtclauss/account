@@ -17,6 +17,7 @@
 package com.ibm.hybrid.cloud.sample.stocktrader.account;
 
 import com.cloudant.client.api.Database;
+import com.cloudant.client.api.model.Response;
 
 import com.ibm.hybrid.cloud.sample.stocktrader.account.client.ODMClient;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.client.WatsonClient;
@@ -165,7 +166,8 @@ public class AccountService extends Application {
 
 				logger.info("Creating account for "+owner);
 
-				accountDB.save(account);
+				Response response = accountDB.save(account);
+				if (response != null) account.set_id(response.getId());
 			} else {
 				logger.warning("Account already exists for: "+owner);
 				throw new WebApplicationException("Account already exists for "+owner+"!", CONFLICT);			
