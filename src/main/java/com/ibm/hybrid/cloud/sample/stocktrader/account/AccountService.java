@@ -180,7 +180,7 @@ public class AccountService extends Application {
 	}
 
 	@GET
-	@Path("/{owner}")
+	@Path("/{id}")
 	@Produces(MediaType.APPLICATION_JSON)
 //	@RolesAllowed({"StockTrader", "StockViewer"}) //Couldn't get this to work; had to do it through the web.xml instead :(
 	public Account getAccount(@PathParam("id") String id, @QueryParam("total") double total, @Context HttpServletRequest request) throws IOException {
@@ -210,7 +210,7 @@ public class AccountService extends Application {
 	}
 
 	@PUT
-	@Path("/{owner}")
+	@Path("/{id}")
 	@Produces(MediaType.APPLICATION_JSON)
 //	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
 	public Account updateAccount(@PathParam("id") String id, @QueryParam("total") double total, @Context HttpServletRequest request) throws IOException {
@@ -250,7 +250,7 @@ public class AccountService extends Application {
 	}
 
 	@DELETE
-	@Path("/{owner}")
+	@Path("/{id}")
 	@Produces(MediaType.APPLICATION_JSON)
 //	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
 	public Account deleteAccount(@PathParam("id") String id) {
@@ -267,7 +267,7 @@ public class AccountService extends Application {
 	}
 
 	@POST
-	@Path("/{owner}/feedback")
+	@Path("/{id}/feedback")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
 //	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
