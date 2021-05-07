@@ -38,7 +38,7 @@ import java.util.logging.Logger;
 //CDI 2.0
 import javax.annotation.Resource;
 import javax.inject.Inject;
-import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.context.RequestScoped;
 
 //mpConfig 1.3
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -79,7 +79,7 @@ import javax.ws.rs.WebApplicationException;
 @ApplicationPath("/")
 @Path("/")
 @LoginConfig(authMethod = "MP-JWT", realmName = "jwt-jaspi")
-@ApplicationScoped //enable interceptors (note you need a WEB-INF/beans.xml in your war)
+@RequestScoped //enable interceptors (note you need a WEB-INF/beans.xml in your war)
 /** This microservice takes care of non-stock related attributes of a customer's account.  This includes
  *  commissions, account balance, sentiment, free trades, and loyalty level determination.  This version
  *  persists data to an IBM Cloudant non-SQL datastore.
