@@ -17,18 +17,21 @@
 package com.ibm.hybrid.cloud.sample.stocktrader.account.client;
 
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.ODMLoyaltyRule;
-import javax.enterprise.context.Dependent;
+
+import javax.enterprise.context.ApplicationScoped;
+
 import javax.ws.rs.ApplicationPath;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.HeaderParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.Produces;
 import javax.ws.rs.Path;
+
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 
 @ApplicationPath("/")
 @Path("/")
-@Dependent
+@ApplicationScoped
 @RegisterRestClient
 /** mpRestClient "remote" interface for the ODM business rule for determining loyalty level */
 public interface ODMClient {
