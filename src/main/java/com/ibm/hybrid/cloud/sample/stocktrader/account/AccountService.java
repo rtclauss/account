@@ -26,6 +26,8 @@ import com.ibm.hybrid.cloud.sample.stocktrader.account.json.Feedback;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.WatsonInput;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -133,12 +135,22 @@ public class AccountService extends Application {
 	@Produces(MediaType.APPLICATION_JSON)
 //	@RolesAllowed({"StockTrader", "StockViewer"}) //Couldn't get this to work; had to do it through the web.xml instead :(
 	public Account[] getAccounts() throws IOException {
-		List<Account> accountList = accountDB.getAllDocsRequestBuilder().includeDocs(true).build().getResponse().getDocsAs(Account.class);
-		int size = accountList.size();
-		Account[] accountArray = new Account[size];
-		accountArray = accountList.toArray(accountArray);
+		List<Account> accountList = null;
+		int size = 0;
 
-		logger.info("Returning "+size+" accounts");
+		try {
+			logger.fine("Entering getAccounts");
+			accountList = accountDB.getAllDocsRequestBuilder().includeDocs(true).build().getResponse().getDocsAs(Account.class);
+			size = accountList.size();
+		} catch (Throwable t) {
+			logger.warning("Failure getting accounts");
+			logException(t);
+		}
+
+		Account[] accountArray = new Account[size];
+		if (accountList != null) accountArray = accountList.toArray(accountArray);
+
+		logger.fine("Returning "+size+" accounts");
 		if (logger.isLoggable(Level.FINE)) for (int index=0; index<size; index++) {
 			Account account = accountArray[index];
 			logger.fine("account["+index+"]="+account);
@@ -153,27 +165,40 @@ public class AccountService extends Application {
 	//	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
 	public Account createAccount(@PathParam("owner") String owner) {
 		Account account = null;
-		if (owner != null) {
+		if (owner != null) try {
 			if (owner.equalsIgnoreCase(FAIL)) {
 				logger.warning("Throwing a 400 error for owner: "+owner);
 				throw new BadRequestException("Invalid value for account owner: "+owner);
 			}
+
+			logger.fine("Checking if account already exists for "+owner);
 			boolean alreadyExists = accountDB.contains(owner);
 
 			if (!alreadyExists) {
 				//loyalty="Basic", balance=50.0, commissions=0.0, free=0, sentiment="Unknown", nextCommission=9.99
 				account = new Account(owner, "Basic", 50.0, 0.0, 0, "Unknown", 9.99);
 
-				logger.info("Creating account for "+owner);
+				logger.fine("Creating account for "+owner);
 
 				Response response = accountDB.save(account);
-				if (response != null) account.set_id(response.getId());
+				if (response != null) {
+					String id = response.getId();
+					account.set_id(id);
+					logger.fine("Created new account for "+owner+" with id "+id);
+				} else {
+					logger.warning("Failed to get response from accountDB.save()");
+				}
 			} else {
 				logger.warning("Account already exists for: "+owner);
 				throw new WebApplicationException("Account already exists for "+owner+"!", CONFLICT);			
 			}
 
 			logger.info("Account created successfully: "+owner);
+		} catch (Throwable t) {
+			logger.warning("Failure to create account for "+owner);
+			logException(t);
+		} else {
+			logger.warning("Owner is null in createAccount");
 		}
 
 		return account;
@@ -184,12 +209,14 @@ public class AccountService extends Application {
 	@Produces(MediaType.APPLICATION_JSON)
 //	@RolesAllowed({"StockTrader", "StockViewer"}) //Couldn't get this to work; had to do it through the web.xml instead :(
 	public Account getAccount(@PathParam("id") String id, @QueryParam("total") double total, @Context HttpServletRequest request) throws IOException {
+		logger.fine("Entering getAccount");
 		Account account = accountDB.find(Account.class, id);
-		if (account != null) {
+		if (account != null) try {
 			if (total != ERROR) {
 				String owner = account.getOwner();
 				String oldLoyalty = account.getLoyalty();
 
+				logger.fine("Invoking ODM for "+id);
 				String loyalty = utilities.invokeODM(odmClient, odmId, odmPwd, owner, total, oldLoyalty, request);
 				if ((loyalty!=null) && !loyalty.equalsIgnoreCase(oldLoyalty)) { //don't rev the Cloudant doc if nothing's changed
 					account.setLoyalty(loyalty);
@@ -197,11 +224,17 @@ public class AccountService extends Application {
 					int free = account.getFree();
 					account.setNextCommission(free>0 ? 0.0 : utilities.getCommission(loyalty));
 
-					if (!delayUpdate(request)) accountDB.update(account); //if called from updateAccount, let it drive the update to Cloudant
+					if (!delayUpdate(request)) {
+						logger.fine("Calling accountDB.update() for "+id);
+						accountDB.update(account); //if called from updateAccount, let it drive the update to Cloudant
+					}
 				}
 			}
 
 			logger.fine("Returning "+account.toString());
+		} catch (Throwable t) {
+			logger.warning("Error creating account for "+id);
+			logException(t);
 		} else {
 			logger.warning("No account found for "+id);
 		}
@@ -214,36 +247,46 @@ public class AccountService extends Application {
 	@Produces(MediaType.APPLICATION_JSON)
 //	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
 	public Account updateAccount(@PathParam("id") String id, @QueryParam("total") double total, @Context HttpServletRequest request) throws IOException {
+		logger.fine("Entering updateAccount");
 		request.setAttribute(DELAY, true); //used by delayUpdate()
-		Account account = getAccount(id, total, request); //this computes new loyalty, etc.
 
-		if (account!=null) {
-			String owner = account.getOwner();
-			String loyalty = account.getLoyalty();
+		Account account = null;
+		try {
+			account = getAccount(id, total, request); //this computes new loyalty, etc.
 
-			double commission = utilities.getCommission(loyalty);
+			if (account!=null) {
+				String owner = account.getOwner();
+				String loyalty = account.getLoyalty();
 
-			int free = account.getFree();
-			if (free > 0) { //use a free trade if available
-				free--;
-				commission = 0.0;
+				double commission = utilities.getCommission(loyalty);
 
-				logger.info("Using free trade for "+owner);
-				account.setFree(free);
+				int free = account.getFree();
+				if (free > 0) { //use a free trade if available
+					free--;
+					commission = 0.0;
+
+					logger.info("Using free trade for "+owner);
+					account.setFree(free);
+				} else {
+					double commissions = account.getCommissions();
+					commissions += commission;
+
+					double balance = account.getBalance();
+					balance -= commission;
+
+					logger.fine("Charging commission of $"+commission+" for "+owner);
+					account.setCommissions(commissions);
+					account.setBalance(balance);
+				}
+
+				logger.fine("Updating account into Cloudant: "+account);
+				accountDB.update(account);
 			} else {
-				double commissions = account.getCommissions();
-				commissions += commission;
-
-				double balance = account.getBalance();
-				balance -= commission;
-
-				logger.info("Charging commission of $"+commission+" for "+owner);
-				account.setCommissions(commissions);
-				account.setBalance(balance);
+				logger.warning("Account is null for "+id+" in updateAccount");
 			}
-
-			logger.fine("Updating account into Cloudant: "+account);
-			accountDB.update(account);
+		} catch (Throwable t) {
+			logger.warning("Error in updateAccount for "+id);
+			logException(t);
 		}
 
 		return account;
@@ -254,13 +297,22 @@ public class AccountService extends Application {
 	@Produces(MediaType.APPLICATION_JSON)
 //	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
 	public Account deleteAccount(@PathParam("id") String id) {
-		Account account = accountDB.find(Account.class, id);
+		Account account = null;
+		logger.fine("Entering deleteAccount for "+id);
+		try {
+			account = accountDB.find(Account.class, id);
 
-		if (account != null) {
-			accountDB.remove(account);
+			if (account != null) {
+				accountDB.remove(account);
 
-			String owner = account.getOwner();
-			logger.info("Successfully deleted portfolio for "+owner);
+				String owner = account.getOwner();
+				logger.info("Successfully deleted account for "+owner);
+			} else {
+				logger.warning("Account not found for "+id+" in deleteAccount");
+			}
+		} catch (Throwable t) {
+			logger.warning("Error occurred in deleteAccount for "+id);
+			logException(t);
 		}
 
 		return account; //maybe this method should return void instead?
@@ -273,23 +325,31 @@ public class AccountService extends Application {
 //	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
 	public Feedback submitFeedback(@PathParam("id") String id, WatsonInput input, @Context HttpServletRequest request) throws IOException {
 		String sentiment = "Unknown";
+		Feedback feedback = null;
 		try {
-			initialize();
+			if (!initialized) initialize();
+
+			logger.fine("Getting account for "+id+" in submitFeedback");
+			Account account = getAccount(id, ERROR, request);
+
+			if (account != null) {
+				int freeTrades = account.getFree();
+
+				feedback = utilities.invokeWatson(watsonClient, watsonId, watsonPwd, input);
+				freeTrades += feedback.getFree();
+
+				account.setFree(freeTrades);
+				account.setSentiment(feedback.getSentiment());
+
+				logger.info("Returning feedback: "+feedback.toString());
+			} else {
+				logger.warning("Account not found for "+id+" in submitFeedback");
+			}
 		} catch (Throwable t) {
-			logger.warning("Error occurred during initialization");
-			t.printStackTrace();
+			logger.warning("Failure submitting feedback for "+id);
+			logException(t);
 		}
 
-		Account account = getAccount(id, ERROR, request);
-		int freeTrades = account.getFree();
-
-		Feedback feedback = utilities.invokeWatson(watsonClient, watsonId, watsonPwd, input);
-		freeTrades += feedback.getFree();
-
-		account.setFree(freeTrades);
-		account.setSentiment(feedback.getSentiment());
-
-		logger.info("Returning feedback: "+feedback.toString());
 		return feedback;
 	}
 
@@ -320,5 +380,16 @@ public class AccountService extends Application {
 			}
 		}
 		return delay;
+	}
+
+	private void logException(Throwable t) {
+		logger.warning(t.getClass().getName()+": "+t.getMessage());
+
+		//only log the stack trace if the level has been set to at least INFO
+		if (logger.isLoggable(Level.INFO)) {
+			StringWriter writer = new StringWriter();
+			t.printStackTrace(new PrintWriter(writer));
+			logger.info(writer.toString());
+		}
 	}
 }
