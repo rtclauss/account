@@ -119,13 +119,13 @@ public class AccountUtilities {
 
 			try {
 				//call the LoyaltyLevel business rule to get the current loyalty level of this portfolio
-				logger.info("Calling loyalty-level ODM business rule for "+owner);
+				logger.fine("Calling loyalty-level ODM business rule for "+owner);
 				ODMLoyaltyRule result = odmClient.getLoyaltyLevel(basicAuth, input);
 
 				loyalty = result.determineLoyalty();
-				logger.info("New loyalty level for "+owner+" is "+loyalty);
+				logger.fine("New loyalty level for "+owner+" is "+loyalty);
 			} catch (Throwable t) {
-				logger.info("Error invoking ODM:" + t.getClass().getName() + ": "+t.getMessage() + ".  Loyalty level will remain unchanged.");
+				logger.warning("Error invoking ODM:" + t.getClass().getName() + ": "+t.getMessage() + ".  Loyalty level will remain unchanged.");
 				if (!odmBroken) logException(t);
 				odmBroken = true; //so logs aren't full of this stack trace on every getAccount
 			}
@@ -139,7 +139,7 @@ public class AccountUtilities {
 				String user = request.getRemoteUser(); //logged-in user
 				if (user != null) message.setId(user);
 	
-				logger.info(message.toString());
+				logger.fine(message.toString());
 	
 				invokeJMS(message);
 			} catch (JMSException jms) { //in case MQ is not configured, just log the exception and continue
@@ -174,7 +174,7 @@ public class AccountUtilities {
 			WatsonOutput watson = watsonClient.getTone(authorization, input);
 			sentiment = watson.determineSentiment();
 		} catch (Throwable t) {
-			logger.info("Error from Watson, with following input: "+input.toString());
+			logger.warning("Error from Watson, with following input: "+input.toString());
 			logException(t);
 		}
 
@@ -200,7 +200,7 @@ public class AccountUtilities {
 	void invokeJMS(Object json) throws JMSException, NamingException {
 		if (!initialized) initialize(); //gets our JMS managed resources (Q and QCF)
 
-		logger.info("Preparing to send a JMS message");
+		logger.fine("Preparing to send a JMS message");
 
 		QueueConnection connection = queueCF.createQueueConnection(mqId, mqPwd);
 		QueueSession session = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
@@ -219,12 +219,13 @@ public class AccountUtilities {
 		session.close();
 		connection.close();
 
-		logger.info("JMS Message sent successfully!");
+		logger.info("JMS Message sent successfully!"); //exception would have occurred otherwise
 	}
 
 	double getCommission(String loyalty) {
 		//TODO: turn this into an ODM business rule
 		double commission = 9.99;
+		logger.fine("Determining commission - loyalty level = "+loyalty);
 		if (loyalty!= null) {
 			if (loyalty.equalsIgnoreCase(BRONZE)) {
 				commission = 8.99;
@@ -236,6 +237,7 @@ public class AccountUtilities {
 				commission = 5.99;
 			} 
 		}
+		logger.fine("Returning commission: "+commission);
 
 		return commission;
 	}
