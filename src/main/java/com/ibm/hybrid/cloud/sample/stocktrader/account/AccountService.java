@@ -193,7 +193,7 @@ public class AccountService extends Application {
 				throw new WebApplicationException("Account already exists for "+owner+"!", CONFLICT);			
 			}
 
-			logger.info("Account created successfully: "+owner);
+			logger.fine("Account created successfully: "+owner);
 		} catch (Throwable t) {
 			logger.warning("Failure to create account for "+owner);
 			logException(t);
@@ -306,7 +306,7 @@ public class AccountService extends Application {
 				accountDB.remove(account);
 
 				String owner = account.getOwner();
-				logger.info("Successfully deleted account for "+owner);
+				logger.fine("Successfully deleted account for "+owner);
 			} else {
 				logger.warning("Account not found for "+id+" in deleteAccount");
 			}
