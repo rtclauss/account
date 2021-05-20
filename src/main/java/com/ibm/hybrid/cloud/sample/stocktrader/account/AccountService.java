@@ -18,6 +18,8 @@ package com.ibm.hybrid.cloud.sample.stocktrader.account;
 
 import com.cloudant.client.api.Database;
 import com.cloudant.client.api.model.Response;
+import com.cloudant.client.org.lightcouch.DocumentConflictException;
+import com.cloudant.client.org.lightcouch.NoDocumentException;
 
 import com.ibm.hybrid.cloud.sample.stocktrader.account.client.ODMClient;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.client.WatsonClient;
@@ -69,7 +71,7 @@ import javax.ws.rs.BadRequestException; //400 error
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
-import javax.ws.rs.NotFoundException;
+import javax.ws.rs.NotFoundException;   //404 error
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.PathParam;
@@ -171,29 +173,25 @@ public class AccountService extends Application {
 				throw new BadRequestException("Invalid value for account owner: "+owner);
 			}
 
-			logger.fine("Checking if account already exists for "+owner);
-			boolean alreadyExists = accountDB.contains(owner);
+			//loyalty="Basic", balance=50.0, commissions=0.0, free=0, sentiment="Unknown", nextCommission=9.99
+			account = new Account(owner, "Basic", 50.0, 0.0, 0, "Unknown", 9.99);
 
-			if (!alreadyExists) {
-				//loyalty="Basic", balance=50.0, commissions=0.0, free=0, sentiment="Unknown", nextCommission=9.99
-				account = new Account(owner, "Basic", 50.0, 0.0, 0, "Unknown", 9.99);
+			logger.fine("Creating account for "+owner);
 
-				logger.fine("Creating account for "+owner);
-
-				Response response = accountDB.save(account);
-				if (response != null) {
-					String id = response.getId();
-					account.set_id(id);
-					logger.fine("Created new account for "+owner+" with id "+id);
-				} else {
-					logger.warning("Failed to get response from accountDB.save()");
-				}
+			Response response = accountDB.save(account);
+			if (response != null) {
+				String id = response.getId();
+				account.set_id(id);
+				logger.fine("Created new account for "+owner+" with id "+id);
 			} else {
-				logger.warning("Account already exists for: "+owner);
-				throw new WebApplicationException("Account already exists for "+owner+"!", CONFLICT);			
+				logger.warning("Failed to get response from accountDB.save()"); //shouldn't get here - exception should have been thrown if the save failed
 			}
 
 			logger.fine("Account created successfully: "+owner);
+		} catch (DocumentConflictException conflict) {
+			logger.warning("Account already exists for: "+owner);
+			logException(conflict);
+			throw new WebApplicationException("Account already exists for "+owner+"!", CONFLICT);			
 		} catch (Throwable t) {
 			logger.warning("Failure to create account for "+owner);
 			logException(t);
@@ -209,10 +207,11 @@ public class AccountService extends Application {
 	@Produces(MediaType.APPLICATION_JSON)
 //	@RolesAllowed({"StockTrader", "StockViewer"}) //Couldn't get this to work; had to do it through the web.xml instead :(
 	public Account getAccount(@PathParam("id") String id, @QueryParam("total") double total, @Context HttpServletRequest request) throws IOException {
+		Account account = null;
 		logger.fine("Entering getAccount");
-		Account account = accountDB.find(Account.class, id);
-		if (account != null) try {
-			if (total != ERROR) {
+		try {
+			account = accountDB.find(Account.class, id);
+			if ((account != null) && (total != ERROR)) {
 				String owner = account.getOwner();
 				String oldLoyalty = account.getLoyalty();
 
@@ -224,19 +223,22 @@ public class AccountService extends Application {
 					int free = account.getFree();
 					account.setNextCommission(free>0 ? 0.0 : utilities.getCommission(loyalty));
 
-					if (!delayUpdate(request)) {
+					if (!delayUpdate(request)) { //if called from updateAccount, let it drive the update to Cloudant
 						logger.fine("Calling accountDB.update() for "+id);
-						accountDB.update(account); //if called from updateAccount, let it drive the update to Cloudant
+						accountDB.update(account);
 					}
 				}
-			}
 
-			logger.fine("Returning "+account.toString());
-		} catch (Throwable t) {
-			logger.warning("Error creating account for "+id);
+				logger.fine("Returning "+account.toString());
+			} else {
+				logger.warning("Unable to find account in getAccount for "+id);
+			}
+		} catch (NoDocumentException t) {
+			logger.warning("Unable to find account for "+id);
 			logException(t);
-		} else {
-			logger.warning("No account found for "+id);
+		} catch (Throwable t) {
+			logger.warning("Unknown error finding account for "+id);
+			logException(t);
 		}
 
 		return account;
@@ -300,13 +302,15 @@ public class AccountService extends Application {
 		Account account = null;
 		logger.fine("Entering deleteAccount for "+id);
 		try {
-			account = accountDB.find(Account.class, id);
+			account = accountDB.find(Account.class, id); //this is sometimes failing with "Error: not_found. Reason: deleted"...
 
 			if (account != null) {
+				String owner = account.getOwner();
+				logger.fine("Deleting account for "+owner);
+
 				accountDB.remove(account);
 
-				String owner = account.getOwner();
-				logger.fine("Successfully deleted account for "+owner);
+				logger.fine("Successfully deleted account for "+owner); //exception would have been thrown otherwise
 			} else {
 				logger.warning("Account not found for "+id+" in deleteAccount");
 			}
