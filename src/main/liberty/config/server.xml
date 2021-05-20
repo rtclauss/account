@@ -75,7 +75,7 @@
 -->
 
     <library id="cloudantLib" apiTypeVisibility="+third-party">
-        <fileset dir="/config" includes="cloudant-* commons-* gson-*"/>
+        <fileset dir="/config" includes="cloudant-* commons-* gson-* okhttp-*"/>
     </library>
 
     <authData id="cloudantCredentials" user="${CLOUDANT_ID}" password="${CLOUDANT_PASSWORD}"/>
