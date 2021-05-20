@@ -137,6 +137,6 @@ public class Account {
     public String toString() {
         return "{\"_id\": \""+_id+"\", \"_rev\": \""+_rev+"\", \"owner\": \""+owner+"\", \"loyalty\": \""+loyalty
                +"\", \"balance\": "+balance+", \"commissions\": "+commissions+", \"free\": "+free
-               +", \"nextCommission\": "+nextCommission+", \"sentiment\": \""+sentiment+"\", \"operation\": \""+operation+""\"}";
+               +", \"nextCommission\": "+nextCommission+", \"sentiment\": \""+sentiment+"\", \"operation\": \""+operation+"\"}";
     }
 }
