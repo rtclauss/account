@@ -28,6 +28,7 @@ public class Account {
     private int free;
     private String sentiment;
     private double nextCommission;
+    private String operation;
 
     public Account() { //default constructor
     }
@@ -117,6 +118,14 @@ public class Account {
 
     public void setNextCommission(double newNextCommission) {
         nextCommission = newNextCommission;
+    }
+
+    public String getOperation() {
+        return operation;
+    }
+
+    public void setOperation(String newOperation) {
+        operation = newOperation;
     }
 
     public boolean equals(Object obj) {
