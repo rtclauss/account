@@ -27,6 +27,7 @@
     </featureManager>
 
     <variable name="AUTH_TYPE" defaultValue="basic"/>
+    <variable name="CLOUDANT_TYPE" defaultValue="cloudant"/>
     <variable name="TRACE_SPEC" defaultValue="*=info"/>
 
     <logging traceSpecification="${TRACE_SPEC}" consoleLogLevel="INFO" />
@@ -78,12 +79,7 @@
         <fileset dir="/config" includes="cloudant-* commons-* gson-* okhttp-*"/>
     </library>
 
-    <authData id="cloudantCredentials" user="${CLOUDANT_ID}" password="${CLOUDANT_PASSWORD}"/>
-
-    <!-- Not sure why I need to specify the username and password both in the <cloudant> tag and in an <authData> reference -->
-    <!-- But I was getting a 401 from Cloudant when I only had username and password, without the containerAuthDataRef      -->
-    <cloudant id="myCloudant" libraryRef="cloudantLib" url="${CLOUDANT_URL}" containerAuthDataRef="cloudantCredentials" username="${CLOUDANT_ID}" password="${CLOUDANT_PASSWORD"/>
-    <cloudantDatabase jndiName="cloudant/AccountDB" databaseName="${CLOUDANT_DB}" create="true" cloudantRef="myCloudant"/>
+    <include optional=false location="${server.config.dir}/includes/${CLOUDANT_TYPE}.xml"/>
 
 <!-- Authentication is via JWT SSO
     <basicRegistry id="basic" realm="BasicRegistry">
