@@ -35,7 +35,7 @@ COPY src/main/liberty/config /opt/ol/wlp/usr/servers/defaultServer/
 
 COPY target/account-1.0-SNAPSHOT.war /opt/ol/wlp/usr/servers/defaultServer/apps/Account.war
 COPY target/prereqs/wmq.jmsra-9.2.3.0.rar /opt/ol/wlp/usr/servers/defaultServer/wmq.jmsra.rar
-COPY target/prereqs/cloudant-* /usr/target/prereqs/commons-* /usr/target/prereqs/gson-*  /usr/target/prereqs/okhttp-* /opt/ol/wlp/usr/servers/defaultServer/
+COPY target/prereqs/cloudant-* target/prereqs/commons-* target/prereqs/gson-*  target/prereqs/okhttp-* /opt/ol/wlp/usr/servers/defaultServer/
 # COPY --from=cert-extractor /keycloak.pem /tmp/keycloak.pem
 RUN chown -R 1001:0 config/
 USER 1001
