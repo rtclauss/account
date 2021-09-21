@@ -16,7 +16,7 @@
 
 <server description="Account server">
     <featureManager>
-        <feature>microProfile-4.0</feature>
+        <feature>microProfile-4.1</feature>
         <feature>jms-2.0</feature>
         <feature>jca-1.7</feature>
         <feature>jndi-1.0</feature>
