@@ -98,4 +98,3 @@ docker push mycluster.icp:8500/stock-trader/portfolio:latest
 helm repo add ibm-charts https://raw.githubusercontent.com/IBM/charts/master/repo/stable/
 helm install ibm-charts/ibm-websphere-liberty -f manifests/portfolio-values.yaml -n portfolio --namespace stock-trader --tls
 ```
-
