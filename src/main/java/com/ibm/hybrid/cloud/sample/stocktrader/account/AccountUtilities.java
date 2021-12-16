@@ -42,6 +42,7 @@ import java.sql.SQLException;
 import org.eclipse.microprofile.opentracing.Traced;
 
 //JMS 2.0
+import javax.annotation.Resource;
 import javax.jms.DeliveryMode;
 import javax.jms.JMSException;
 import javax.jms.Queue;
@@ -66,10 +67,6 @@ import javax.servlet.http.HttpServletRequest;
 public class AccountUtilities {
 	private static Logger logger = Logger.getLogger(AccountUtilities.class.getName());
 
-	private static final String NOTIFICATION_Q   = "jms/Portfolio/NotificationQueue";
-	private static final String NOTIFICATION_QCF = "jms/Portfolio/NotificationQueueConnectionFactory";
-
-	private boolean initialized = false;
 	private boolean odmBroken   = false; //used to only report failures of calls to ODM once, rather than every time
 
 	//Our ODM rule will return its own values for levels, generally in all caps
@@ -79,35 +76,15 @@ public class AccountUtilities {
 	private static final String GOLD     = "Gold";
 	private static final String PLATINUM = "Platinum";
 
-	private static Queue queue = null;
-	private static QueueConnectionFactory queueCF = null;
+	@Resource(lookup = "jms/Portfolio/NotificationQueue")
+	private static Queue queue;
+	@Resource(lookup = "jms/Portfolio/NotificationQueueConnectionFactory")
+	private static QueueConnectionFactory queueCF;
 
 	private static SimpleDateFormat timestampFormatter = null;
 
 	private static final String mqId = System.getenv("MQ_ID");
 	private static final String mqPwd = System.getenv("MQ_PASSWORD");
-
-	@Traced
-	private void initialize() throws NamingException {
-		if (!initialized) try {
-			//lookup our JMS objects
-			logger.info("Looking up our JMS resources");
-			InitialContext context = new InitialContext();
-			queueCF = (QueueConnectionFactory) context.lookup(NOTIFICATION_QCF);
-			queue = (Queue) context.lookup(NOTIFICATION_Q);
-
-			logger.info("JMS Initialization completed successfully!"); //exception would have occurred otherwise
-			initialized = true;
-		} catch (NamingException ne) {
-			logger.warning("JNDI lookup failed.  Initialization did NOT complete.  Expect severe failures!");
-			logException(ne);
-			throw ne;
-		} catch (RuntimeException re) {
-			logger.warning("Runtime exception.  Initialization did NOT complete.  Expect severe failures!");
-			logException(re);
-			throw re;
-		}
-	}
 
 	@Traced
 	String invokeODM(ODMClient odmClient, String odmId, String odmPwd, String owner, double overallTotal, String oldLoyalty, HttpServletRequest request) {
@@ -198,7 +175,6 @@ public class AccountUtilities {
 	/** Send a JSON message to our notification queue. */
 	@Traced
 	void invokeJMS(Object json) throws JMSException, NamingException {
-		if (!initialized) initialize(); //gets our JMS managed resources (Q and QCF)
 
 		logger.fine("Preparing to send a JMS message");
 

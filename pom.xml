@@ -89,10 +89,18 @@
             <artifactId>slf4j-jdk14</artifactId>
             <version>1.7.32</version>
         </dependency>
+        <!-- MQ Providers -->
         <dependency>
             <groupId>com.ibm.mq</groupId>
             <artifactId>wmq.jmsra</artifactId>
             <version>9.2.3.0</version>
+            <type>rar</type>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.activemq</groupId>
+            <artifactId>activemq-rar</artifactId>
+            <version>5.16.3</version>
             <type>rar</type>
             <scope>provided</scope>
         </dependency>
