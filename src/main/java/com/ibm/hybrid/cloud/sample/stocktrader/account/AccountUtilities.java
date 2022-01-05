@@ -1,5 +1,5 @@
 /*
-       Copyright 2020-2021 IBM Corp All Rights Reserved
+       Copyright 2020-2022 IBM Corp All Rights Reserved
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -56,14 +56,10 @@ import javax.jms.TextMessage;
 //JSON-P 1.1 (JSR 353).  This replaces my old usage of IBM's JSON4J (com.ibm.json.java.JSONObject)
 import javax.json.JsonObject;
 
-//JNDI 1.0
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
-
 //Servlet 4.0
 import javax.servlet.http.HttpServletRequest;
 
-
+/** Utility class that wraps communication with various types of services in the cloud */
 public class AccountUtilities {
 	private static Logger logger = Logger.getLogger(AccountUtilities.class.getName());
 
@@ -77,15 +73,16 @@ public class AccountUtilities {
 	private static final String PLATINUM = "Platinum";
 
 	@Resource(lookup = "jms/Portfolio/NotificationQueue")
-	private static Queue queue;
+	private Queue queue;
 	@Resource(lookup = "jms/Portfolio/NotificationQueueConnectionFactory")
-	private static QueueConnectionFactory queueCF;
+	private QueueConnectionFactory queueCF;
 
 	private static SimpleDateFormat timestampFormatter = null;
 
 	private static final String mqId = System.getenv("MQ_ID");
 	private static final String mqPwd = System.getenv("MQ_PASSWORD");
 
+	/** Invoke a business rule to determine the loyalty level corresponding to an account balance */
 	@Traced
 	String invokeODM(ODMClient odmClient, String odmId, String odmPwd, String owner, double overallTotal, String oldLoyalty, HttpServletRequest request) {
 		String loyalty = null;
@@ -139,6 +136,7 @@ public class AccountUtilities {
 		return loyalty;
 	}
 
+	/** Use the Watson Tone Analyzer to determine the user's sentiment */
 	@Traced
 	Feedback invokeWatson(WatsonClient watsonClient, String watsonId, String watsonPwd, WatsonInput input) {
 		String sentiment = "Unknown";
@@ -174,7 +172,7 @@ public class AccountUtilities {
 
 	/** Send a JSON message to our notification queue. */
 	@Traced
-	void invokeJMS(Object json) throws JMSException, NamingException {
+	void invokeJMS(Object json) throws JMSException {
 
 		logger.fine("Preparing to send a JMS message");
 
@@ -199,7 +197,7 @@ public class AccountUtilities {
 	}
 
 	double getCommission(String loyalty) {
-		//TODO: turn this into an ODM business rule
+		//TODO: turn this into an ODM business rule or a FaaS function (such as in AWS Lambda)
 		double commission = 9.99;
 		logger.fine("Determining commission - loyalty level = "+loyalty);
 		if (loyalty!= null) {
