@@ -91,10 +91,10 @@ import javax.ws.rs.WebApplicationException;
 public class AccountService extends Application {
 	private static Logger logger = Logger.getLogger(AccountService.class.getName());
 
-	private static final double ERROR    = -1.0;
-	private static final int    CONFLICT = 409;         //odd that JAX-RS has no ConflictException
-	private static final String FAIL     = "FAIL";      //trying to create an account with this name will always throw a 400
-	private static final String DELAY    = "com.ibm.hybrid.cloud.sample.stocktrader.account.delayUpdate";
+	private static final double DONT_RECALCULATE = -1.0;
+	private static final int    CONFLICT         = 409;         //odd that JAX-RS has no ConflictException
+	private static final String FAIL             = "FAIL";      //trying to create an account with this name will always throw a 400
+	private static final String DELAY            = "com.ibm.hybrid.cloud.sample.stocktrader.account.delayUpdate";
 
 	private static boolean initialized = false;
 	private static boolean staticInitialized = false;
@@ -211,27 +211,32 @@ public class AccountService extends Application {
 		logger.fine("Entering getAccount");
 		try {
 			account = accountDB.find(Account.class, id);
-			if ((account != null) && (total != ERROR)) {
-				String owner = account.getOwner();
-				String oldLoyalty = account.getLoyalty();
-
-				logger.fine("Invoking ODM for "+id);
-				String loyalty = utilities.invokeODM(odmClient, odmId, odmPwd, owner, total, oldLoyalty, request);
-				if ((loyalty!=null) && !loyalty.equalsIgnoreCase(oldLoyalty)) { //don't rev the Cloudant doc if nothing's changed
-					account.setLoyalty(loyalty);
-
-					int free = account.getFree();
-					account.setNextCommission(free>0 ? 0.0 : utilities.getCommission(loyalty));
-
-					if (!delayUpdate(request)) { //if called from updateAccount, let it drive the update to Cloudant
-						logger.fine("Calling accountDB.update() for "+id);
-						accountDB.update(account);
+			if (account != null) {
+				if (total == DONT_RECALCULATE) {
+					logger.fine("Skipping recalculation of loyalty level and next commision as requested");
+				} else {
+					String owner = account.getOwner();
+					String oldLoyalty = account.getLoyalty();
+	
+					logger.fine("Invoking external business rule for "+id);
+					//this can be a call to either IBM ODM, or my simple Lambda function alternative, depending on the URL configured in the CR yaml
+					String loyalty = utilities.invokeODM(odmClient, odmId, odmPwd, owner, total, oldLoyalty, request);
+					if ((loyalty!=null) && !loyalty.equalsIgnoreCase(oldLoyalty)) { //don't rev the Cloudant doc if nothing's changed
+						account.setLoyalty(loyalty);
+	
+						int free = account.getFree();
+						account.setNextCommission(free>0 ? 0.0 : utilities.getCommission(loyalty));
+	
+						if (!delayUpdate(request)) { //if called from updateAccount, let it drive the update to Cloudant
+							logger.fine("Calling accountDB.update() for "+id+" in getAccount due to new loyalty level");
+							accountDB.update(account);
+						}
 					}
 				}
-
+	
 				logger.fine("Returning "+account.toString());
 			} else {
-				logger.warning("Unable to find account in getAccount for "+id);
+				logger.warning("Got null in getAccount for "+id+", rather than expected NoDocumentException");
 			}
 		} catch (NoDocumentException t) {
 			logger.warning("Unable to find account for "+id);
@@ -334,7 +339,7 @@ public class AccountService extends Application {
 			if (!initialized) initialize();
 
 			logger.fine("Getting account for "+id+" in submitFeedback");
-			Account account = getAccount(id, ERROR, request);
+			Account account = getAccount(id, DONT_RECALCULATE, request);
 
 			if (account != null) {
 				int freeTrades = account.getFree();
