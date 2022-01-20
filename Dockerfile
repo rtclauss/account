@@ -1,4 +1,4 @@
-#       Copyright 2020-2021 IBM Corp All Rights Reserved
+#       Copyright 2020-2022 IBM Corp All Rights Reserved
 
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ COPY src/main/liberty/config /opt/ol/wlp/usr/servers/defaultServer/
 # RUN features.sh
 
 COPY target/account-1.0-SNAPSHOT.war /opt/ol/wlp/usr/servers/defaultServer/apps/Account.war
-COPY target/prereqs/wmq.jmsra-9.2.4.0.rar /opt/ol/wlp/usr/servers/defaultServer/wmq.jmsra.rar
+COPY target/prereqs/wmq.jmsra-*.rar /opt/ol/wlp/usr/servers/defaultServer/wmq.jmsra.rar
 COPY target/prereqs/activemq-rar-*.rar /opt/ol/wlp/usr/servers/defaultServer/activemq.rar
 COPY target/prereqs/cloudant-* target/prereqs/commons-* target/prereqs/gson-*  target/prereqs/okhttp-* /opt/ol/wlp/usr/servers/defaultServer/
 # COPY --from=cert-extractor /keycloak.pem /tmp/keycloak.pem
