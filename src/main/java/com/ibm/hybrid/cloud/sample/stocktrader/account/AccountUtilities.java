@@ -170,27 +170,30 @@ public class AccountUtilities {
 	/** Send a JSON message to our notification queue. */
 	@Traced
 	void invokeJMS(Object json) throws JMSException {
+		if (queueCF != null) {
+			logger.fine("Preparing to send a JMS message");
 
-		logger.fine("Preparing to send a JMS message");
+			QueueConnection connection = queueCF.createQueueConnection(mqId, mqPwd);
+			QueueSession session = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
 
-		QueueConnection connection = queueCF.createQueueConnection(mqId, mqPwd);
-		QueueSession session = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
+			String contents = json.toString();
+			TextMessage message = session.createTextMessage(contents);
 
-		String contents = json.toString();
-		TextMessage message = session.createTextMessage(contents);
+			logger.info("Sending "+contents+" to "+queue.getQueueName());
 
-		logger.info("Sending "+contents+" to "+queue.getQueueName());
+			//"mqclient" group needs "put" authority on the queue for next two lines to work
+			QueueSender sender = session.createSender(queue);
+			sender.setDeliveryMode(DeliveryMode.PERSISTENT);
+			sender.send(message);
 
-		//"mqclient" group needs "put" authority on the queue for next two lines to work
-		QueueSender sender = session.createSender(queue);
-		sender.setDeliveryMode(DeliveryMode.PERSISTENT);
-		sender.send(message);
+			sender.close();
+			session.close();
+			connection.close();
 
-		sender.close();
-		session.close();
-		connection.close();
-
-		logger.info("JMS Message sent successfully!"); //exception would have occurred otherwise
+			logger.info("JMS Message sent successfully!"); //exception would have occurred otherwise
+		} else {
+			logger.warning("Unable to inject JMS QueueConnectionFactory - check your MQ configuration.  No JMS message will be sent.");
+		}
 	}
 
 	double getCommission(String loyalty) {
