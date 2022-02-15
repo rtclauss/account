@@ -136,9 +136,7 @@
                         </goals>
                         <configuration>
                             <outputDirectory>${project.build.directory}/prereqs</outputDirectory>
-                            <overWriteReleases>false</overWriteReleases>
-                            <overWriteSnapshots>false</overWriteSnapshots>
-                            <overWriteIfNewer>true</overWriteIfNewer>
+                            <excludeScope>provided</excludeScope>
                         </configuration>
                     </execution>
                 </executions>
