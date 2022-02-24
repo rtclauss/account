@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <!--
-       Copyright 2020-2021 IBM Corp All Rights Reserved
+       Copyright 2020-2022 IBM Corp All Rights Reserved
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -84,7 +84,7 @@
             <artifactId>jaeger-client</artifactId>
             <version>1.8.0</version>
         </dependency>
-<!-- Use newer versions of gson and libthrift dependencies (needed by Jaeger) to avoid vulnerability scan issues -->
+<!-- Use newer versions of gson, libthrift and commons-codec dependencies to avoid vulnerability scan issues -->
         <dependency>
           <groupId>com.google.code.gson</groupId>
           <artifactId>gson</artifactId>
@@ -94,6 +94,11 @@
             <groupId>org.apache.thrift</groupId>
             <artifactId>libthrift</artifactId>
             <version>0.15.0</version>
+        </dependency>
+        <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>1.15</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -140,7 +145,7 @@
                 <version>3.2.0</version>
                 <executions>
                     <execution>
-                        <id>copy-dependencies</id>
+                        <id>copy-nonprovided-dependencies</id>
                         <phase>package</phase>
                         <goals>
                             <goal>copy-dependencies</goal>
@@ -148,6 +153,18 @@
                         <configuration>
                             <outputDirectory>${project.build.directory}/prereqs</outputDirectory>
                             <excludeScope>provided</excludeScope>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>copy-rar-dependencies</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/prereqs</outputDirectory>
+                            <includeScope>provided</includeScope>
+                            <includeTypes>rar</includeTypes>
                         </configuration>
                     </execution>
                 </executions>
