@@ -1,5 +1,5 @@
 <!--
-       Copyright 2020-2021 IBM Corp All Rights Reserved
+       Copyright 2020-2022 IBM Corp All Rights Reserved
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@
     </featureManager>
 
     <variable name="AUTH_TYPE" defaultValue="basic"/>
+    <variable name="MQ_KIND" defaultValue="ibm-mq"/>
     <variable name="CLOUDANT_TYPE" defaultValue="cloudant"/>
     <variable name="TRACE_SPEC" defaultValue="*=info"/>
 
