@@ -142,8 +142,12 @@ public class AccountService extends Application {
 
 		try {
 			logger.fine("Entering getAccounts");
-			accountList = accountDB.getAllDocsRequestBuilder().includeDocs(true).build().getResponse().getDocsAs(Account.class);
-			size = accountList.size();
+			if (accountDB != null) {
+				accountList = accountDB.getAllDocsRequestBuilder().includeDocs(true).build().getResponse().getDocsAs(Account.class);
+				size = accountList.size();
+			} else {
+				logger.warning("accountDB is null, so returning empty array.  Investigate why the CDI injection failed for details");
+			}
 		} catch (Throwable t) {
 			logger.warning("Failure getting accounts");
 			logException(t);
