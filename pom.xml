@@ -184,7 +184,7 @@
                         <configuration>
                             <outputDirectory>${project.build.directory}/prereqs</outputDirectory>
                             <!-- Need to include the "provided" cloudant jar that got excluded above -->
-                            <includeArtifactIds>cloudant-client</includeArtifactIds>
+                            <includeArtifactIds>cloudant-client,cloudant-http</includeArtifactIds>
                         </configuration>
                     </execution>
                 </executions>
