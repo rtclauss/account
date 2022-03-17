@@ -90,7 +90,7 @@
             <artifactId>jaeger-client</artifactId>
             <version>1.8.0</version>
         </dependency>
-<!-- Use newer versions of gson, libthrift and commons-codec dependencies to avoid vulnerability scan issues -->
+<!-- Use newer versions of gson, libthrift and apache commons dependencies to avoid vulnerability scan issues -->
         <dependency>
           <groupId>com.google.code.gson</groupId>
           <artifactId>gson</artifactId>
@@ -100,6 +100,11 @@
             <groupId>org.apache.thrift</groupId>
             <artifactId>libthrift</artifactId>
             <version>0.16.0</version>
+        </dependency>
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.11.0</version>
         </dependency>
         <dependency>
             <groupId>commons-codec</groupId>
@@ -184,7 +189,7 @@
                         <configuration>
                             <outputDirectory>${project.build.directory}/prereqs</outputDirectory>
                             <!-- Need to include the "provided" cloudant jar that got excluded above -->
-                            <includeArtifactIds>cloudant-client,cloudant-http</includeArtifactIds>
+                            <includeArtifactIds>cloudant-client,cloudant-http,okhttp-urlconnection</includeArtifactIds>
                         </configuration>
                     </execution>
                 </executions>
