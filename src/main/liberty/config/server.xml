@@ -54,7 +54,7 @@
     <include optional="false" location="${server.config.dir}/includes/${MQ_KIND}.xml"/>
 
     <library id="cloudantLib" apiTypeVisibility="+third-party">
-        <fileset dir="/config" includes="cloudant-* commons-* gson-* okhttp-*"/>
+        <fileset dir="/config" includes="cloudant-* commons-* gson-* ok*"/>
     </library>
 
     <include optional="false" location="${server.config.dir}/includes/${CLOUDANT_TYPE}.xml"/>
