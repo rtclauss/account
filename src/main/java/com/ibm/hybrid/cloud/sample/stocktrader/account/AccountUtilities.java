@@ -76,15 +76,18 @@ public class AccountUtilities {
 	private static final String GOLD     = "Gold";
 	private static final String PLATINUM = "Platinum";
 
-	@Resource(lookup = "jms/Portfolio/NotificationQueue")
-	private static Queue queue;
-	@Resource(lookup = "jms/Portfolio/NotificationQueueConnectionFactory")
-	private static QueueConnectionFactory queueCF;
+	private Queue queue;
+	private QueueConnectionFactory queueCF;
 
 	private static SimpleDateFormat timestampFormatter = null;
 
 	private static final String mqId = System.getenv("MQ_ID");
 	private static final String mqPwd = System.getenv("MQ_PASSWORD");
+
+	public AccountUtilities(QueueConnectionFactory queueCF, Queue queue){
+		this.queueCF = queueCF;
+		this.queue = queue;
+	}
 
 	@Traced
 	String invokeODM(ODMClient odmClient, String odmId, String odmPwd, String owner, double overallTotal, String oldLoyalty, HttpServletRequest request) {

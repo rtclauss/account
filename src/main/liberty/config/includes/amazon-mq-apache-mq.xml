@@ -2,11 +2,13 @@
     <authData id="MQ-Credentials" user="${env.MQ_ID}" password="${env.MQ_PASSWORD}"></authData>
 
     <resourceAdapter id="activemq" location="/config/activemq.rar">
+        <properties.activemq ServerUrl="${env.MQ_URL}" />
         <classloader apiTypeVisibility="+third-party"/>
     </resourceAdapter>
 
     <jmsQueueConnectionFactory id="NotificationQCF" jndiName="jms/Portfolio/NotificationQueueConnectionFactory" containerAuthDataRef="MQ-Credentials">
-        <properties.activemq ServerUrl="ssl://${env.MQ_HOST}"/>
+        <properties.activemq ServerUrl="${env.MQ_URL}" />
+<!--        <properties.activemq ServerUrl="${env.MQ_URL}"/>-->
         <!-- Using .activemq as that is the ID for the resource adapter          -->
         <!-- ******************************************************************* -->
         <!-- Note, that this is the OpenWire endpoint (ssl://)                   -->
