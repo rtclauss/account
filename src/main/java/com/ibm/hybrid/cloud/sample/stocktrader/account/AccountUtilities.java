@@ -1,5 +1,5 @@
 /*
-       Copyright 2020-2021 IBM Corp All Rights Reserved
+       Copyright 2020-2022 IBM Corp All Rights Reserved
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -56,14 +56,10 @@ import javax.jms.TextMessage;
 //JSON-P 1.1 (JSR 353).  This replaces my old usage of IBM's JSON4J (com.ibm.json.java.JSONObject)
 import javax.json.JsonObject;
 
-//JNDI 1.0
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
-
 //Servlet 4.0
 import javax.servlet.http.HttpServletRequest;
 
-
+/** Utility class that wraps communication with various types of services in the cloud */
 public class AccountUtilities {
 	private static Logger logger = Logger.getLogger(AccountUtilities.class.getName());
 
@@ -84,6 +80,7 @@ public class AccountUtilities {
 	private static final String mqId = System.getenv("MQ_ID");
 	private static final String mqPwd = System.getenv("MQ_PASSWORD");
 
+	/** Invoke a business rule to determine the loyalty level corresponding to an account balance */
 	public AccountUtilities(QueueConnectionFactory queueCF, Queue queue){
 		this.queueCF = queueCF;
 		this.queue = queue;
@@ -127,9 +124,6 @@ public class AccountUtilities {
 				logException(jms);
 				Exception linked = jms.getLinkedException(); //get the nested exception from MQ
 				if (linked != null) logException(linked);
-			} catch (NamingException ne) { //in case MQ is not configured, just log the exception and continue
-				logger.warning("Unable to lookup JMS managed resources from JNDI.  Continuing without notification of change in loyalty level.");
-				logException(ne);
 			} catch (Throwable t) { //in case MQ is not configured, just log the exception and continue
 				logger.warning("An unexpected error occurred.  Continuing without notification of change in loyalty level.");
 				logException(t);
@@ -142,6 +136,7 @@ public class AccountUtilities {
 		return loyalty;
 	}
 
+	/** Use the Watson Tone Analyzer to determine the user's sentiment */
 	@Traced
 	Feedback invokeWatson(WatsonClient watsonClient, String watsonId, String watsonPwd, WatsonInput input) {
 		String sentiment = "Unknown";
@@ -177,32 +172,35 @@ public class AccountUtilities {
 
 	/** Send a JSON message to our notification queue. */
 	@Traced
-	void invokeJMS(Object json) throws JMSException, NamingException {
+	void invokeJMS(Object json) throws JMSException {
+		if (queueCF != null) {
+			logger.fine("Preparing to send a JMS message");
 
-		logger.fine("Preparing to send a JMS message");
+			QueueConnection connection = queueCF.createQueueConnection(mqId, mqPwd);
+			QueueSession session = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
 
-		QueueConnection connection = queueCF.createQueueConnection(mqId, mqPwd);
-		QueueSession session = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
+			String contents = json.toString();
+			TextMessage message = session.createTextMessage(contents);
 
-		String contents = json.toString();
-		TextMessage message = session.createTextMessage(contents);
+			logger.info("Sending "+contents+" to "+queue.getQueueName());
 
-		logger.info("Sending "+contents+" to "+queue.getQueueName());
+			//"mqclient" group needs "put" authority on the queue for next two lines to work
+			QueueSender sender = session.createSender(queue);
+			sender.setDeliveryMode(DeliveryMode.PERSISTENT);
+			sender.send(message);
 
-		//"mqclient" group needs "put" authority on the queue for next two lines to work
-		QueueSender sender = session.createSender(queue);
-		sender.setDeliveryMode(DeliveryMode.PERSISTENT);
-		sender.send(message);
+			sender.close();
+			session.close();
+			connection.close();
 
-		sender.close();
-		session.close();
-		connection.close();
-
-		logger.info("JMS Message sent successfully!"); //exception would have occurred otherwise
+			logger.info("JMS Message sent successfully!"); //exception would have occurred otherwise
+		} else {
+			logger.warning("Unable to inject JMS QueueConnectionFactory - check your MQ configuration.  No JMS message will be sent.");
+		}
 	}
 
 	double getCommission(String loyalty) {
-		//TODO: turn this into an ODM business rule
+		//TODO: turn this into an ODM business rule or a FaaS function (such as in AWS Lambda)
 		double commission = 9.99;
 		logger.fine("Determining commission - loyalty level = "+loyalty);
 		if (loyalty!= null) {
