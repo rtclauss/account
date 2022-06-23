@@ -76,6 +76,11 @@ spec:
               secretKeyRef:
                 name: mq   
                 key: pwd
+          - name: MQ_URL
+            valueFrom:
+              secretKeyRef:
+                name: mq
+                key: url
           - name: MQ_HOST
             valueFrom:
               secretKeyRef:

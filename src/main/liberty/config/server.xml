@@ -30,6 +30,7 @@
     <variable name="MQ_KIND" defaultValue="ibm-mq"/>
     <variable name="CLOUDANT_TYPE" defaultValue="cloudant"/>
     <variable name="TRACE_SPEC" defaultValue="*=info"/>
+    <variable name="MQ_URL" defaultValue="ssl://${MQ_HOST}:${MQ_PORT}"/>
 
     <logging traceSpecification="${TRACE_SPEC}" consoleLogLevel="INFO" />
 

@@ -60,6 +60,8 @@ import org.eclipse.microprofile.opentracing.Traced;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 //Servlet 4.0
+import javax.jms.Queue;
+import javax.jms.QueueConnectionFactory;
 import javax.servlet.http.HttpServletRequest;
 
 //JAX-RS 2.1 (JSR 339)
@@ -101,7 +103,14 @@ public class AccountService extends Application {
 
 	@Resource(lookup="cloudant/AccountDB") Database accountDB;  //defined in the server.xml
 
-	private AccountUtilities utilities = new AccountUtilities();
+	// For some reason, for these injections to work, they must be declared static and be located in this class
+	// not AccountUtilities. If you remove the static keyword the injection fails.
+	@Resource(lookup = "jms/Portfolio/NotificationQueue")
+	private static Queue queue;
+	@Resource(lookup = "jms/Portfolio/NotificationQueueConnectionFactory")
+	private static QueueConnectionFactory queueCF;
+
+	private AccountUtilities utilities = new AccountUtilities(queueCF, queue);
 
 	private @Inject @RestClient ODMClient odmClient;
 	private @Inject @RestClient WatsonClient watsonClient;

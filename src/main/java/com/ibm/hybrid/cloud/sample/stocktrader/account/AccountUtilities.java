@@ -72,9 +72,7 @@ public class AccountUtilities {
 	private static final String GOLD     = "Gold";
 	private static final String PLATINUM = "Platinum";
 
-	@Resource(lookup = "jms/Portfolio/NotificationQueue")
 	private Queue queue;
-	@Resource(lookup = "jms/Portfolio/NotificationQueueConnectionFactory")
 	private QueueConnectionFactory queueCF;
 
 	private static SimpleDateFormat timestampFormatter = null;
@@ -83,6 +81,11 @@ public class AccountUtilities {
 	private static final String mqPwd = System.getenv("MQ_PASSWORD");
 
 	/** Invoke a business rule to determine the loyalty level corresponding to an account balance */
+	public AccountUtilities(QueueConnectionFactory queueCF, Queue queue){
+		this.queueCF = queueCF;
+		this.queue = queue;
+	}
+
 	@Traced
 	String invokeODM(ODMClient odmClient, String odmId, String odmPwd, String owner, double overallTotal, String oldLoyalty, HttpServletRequest request) {
 		String loyalty = null;
