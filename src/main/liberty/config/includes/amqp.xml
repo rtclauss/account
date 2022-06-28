@@ -1,0 +1,12 @@
+<server>
+    <resourceAdapter id="amqp" location="/config/amqp.rar">
+        <classloader apiTypeVisibility="+third-party"/>
+    </resourceAdapter>
+
+   <!-- Following workaround explained here: https://stackoverflow.com/questions/61464201/connect-openliberty-to-rabbitmq-over-jms -->
+   <connectionFactory jndiName="jms/JmsFactory">
+       <properties.amqp DeleteTemporaryDestinations="true" ConnectionFactory="factory1"
+           JndiParameters="java.naming.factory.initial=org.apache.qpid.jms.jndi.JmsInitialContextFactory;connectionFactory.factory1=${MQ_URL}"
+           UserName="${MQ_ID}" Password="${MQ_PASSWORD}" />
+    </connectionFactory>
+</server>
