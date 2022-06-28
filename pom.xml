@@ -131,6 +131,13 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
+            <groupId>org.amqphub.jca</groupId>
+            <artifactId>resource-adapter</artifactId>
+            <version>2.0.0</version>
+            <type>rar</type>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>4.13.2</version>
