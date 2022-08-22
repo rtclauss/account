@@ -1,5 +1,5 @@
 /*
-       Copyright 2020-2021 IBM Corp All Rights Reserved
+       Copyright 2020-2022 IBM Corp All Rights Reserved
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -52,6 +52,13 @@ import org.eclipse.microprofile.auth.LoginConfig;
 
 //mpMetrics 2.0
 import org.eclipse.microprofile.metrics.annotation.Counted;
+import org.eclipse.microprofile.metrics.annotation.Gauge;
+import org.eclipse.microprofile.metrics.Metadata;
+import org.eclipse.microprofile.metrics.MetricRegistry;
+import org.eclipse.microprofile.metrics.MetricType;
+import org.eclipse.microprofile.metrics.MetricUnits;
+import org.eclipse.microprofile.metrics.Tag;
+
 
 //mpOpenTracing 1.3
 import org.eclipse.microprofile.opentracing.Traced;
@@ -98,6 +105,15 @@ public class AccountService extends Application {
 	private static final String FAIL             = "FAIL";      //trying to create an account with this name will always throw a 400
 	private static final String DELAY            = "com.ibm.hybrid.cloud.sample.stocktrader.account.delayUpdate";
 
+	//we'll define an mpMetrics gauge per loyalty level
+	private static final String BASIC    = "basic";
+	private static final String BRONZE   = "bronze";
+	private static final String SILVER   = "silver";
+	private static final String GOLD     = "gold";
+	private static final String PLATINUM = "platinum";
+	private static final String UNKNOWN  = "unknown";
+	private static final String DOLLARS  = "USD";
+
 	private static boolean initialized = false;
 	private static boolean staticInitialized = false;
 
@@ -109,6 +125,13 @@ public class AccountService extends Application {
 	private static Queue queue;
 	@Resource(lookup = "jms/Portfolio/NotificationQueueConnectionFactory")
 	private static QueueConnectionFactory queueCF;
+
+	private static HashMap<String, Double> totals = new HashMap<String, Double>();
+	private static HashMap<String, org.eclipse.microprofile.metrics.Gauge> gauges = new HashMap<String, org.eclipse.microprofile.metrics.Gauge>();
+
+	private int basic=0, bronze=0, silver=0, gold=0, platinum=0, unknown=0; //loyalty level counts
+
+	private @Inject MetricRegistry metricRegistry;
 
 	private AccountUtilities utilities = new AccountUtilities(queueCF, queue);
 
@@ -166,9 +189,26 @@ public class AccountService extends Application {
 		if (accountList != null) accountArray = accountList.toArray(accountArray);
 
 		logger.fine("Returning "+size+" accounts");
-		if (logger.isLoggable(Level.FINE)) for (int index=0; index<size; index++) {
-			Account account = accountArray[index];
-			logger.fine("account["+index+"]="+account);
+
+		try {
+			basic=0; bronze=0; silver=0; gold=0; platinum=0; unknown=0; //reset loyalty level counts
+			metricRegistry.remove("loyalty_value");
+			for (int index=0; index<size; index++) {
+				Account account = accountArray[index];
+				logger.fine("account["+index+"]="+account);
+
+				String loyaltyLevel = account.getLoyalty();
+				if (loyaltyLevel!=null) {
+					if (loyaltyLevel.equalsIgnoreCase(BASIC)) basic++;
+					else if (loyaltyLevel.equalsIgnoreCase(BRONZE)) bronze++;
+					else if (loyaltyLevel.equalsIgnoreCase(SILVER)) silver++;
+					else if (loyaltyLevel.equalsIgnoreCase(GOLD)) gold++;
+					else if (loyaltyLevel.equalsIgnoreCase(PLATINUM)) platinum++;
+					else unknown++;
+				}
+			}
+		} catch (Throwable t) {
+			logException(t);
 		}
 		return accountArray;
 	}
@@ -234,6 +274,7 @@ public class AccountService extends Application {
 					logger.fine("Invoking external business rule for "+id);
 					//this can be a call to either IBM ODM, or my simple Lambda function alternative, depending on the URL configured in the CR yaml
 					String loyalty = utilities.invokeODM(odmClient, odmId, odmPwd, owner, total, oldLoyalty, request);
+					setLoyaltyMetric(owner, total);
 					if ((loyalty!=null) && !loyalty.equalsIgnoreCase(oldLoyalty)) { //don't rev the Cloudant doc if nothing's changed
 						account.setLoyalty(loyalty);
 	
@@ -402,6 +443,52 @@ public class AccountService extends Application {
 			}
 		}
 		return delay;
+	}
+
+	void setLoyaltyMetric(String owner, double total) {
+		totals.put(owner, total);
+		if (gauges.get(owner)==null) try { //gauge not yet registered for this portfolio
+			//have to fully qualify Gauge below because there's also an annotation with that class name that we import
+			org.eclipse.microprofile.metrics.Gauge<Double> gauge = () -> { return totals.get(owner); };
+
+			Metadata metadata = Metadata.builder().withName("loyalty_value").withType(MetricType.GAUGE).withUnit(DOLLARS).build();
+
+			metricRegistry.register(metadata, gauge, new Tag("owner", owner)); //registry injected via CDI
+
+			gauges.put(owner, gauge);
+		} catch (Throwable t) {
+			logException(t);
+		}
+	}
+
+	@Gauge(name="account_loyalty", tags="level=basic", displayName="Basic", unit=MetricUnits.NONE)
+	public int getBasic() {
+		return basic;
+	}
+
+	@Gauge(name="account_loyalty", tags="level=bronze", displayName="Bronze", unit=MetricUnits.NONE)
+	public int getBronze() {
+		return bronze;
+	}
+
+	@Gauge(name="account_loyalty", tags="level=silver", displayName="Silver", unit=MetricUnits.NONE)
+	public int getSilver() {
+		return silver;
+	}
+
+	@Gauge(name="account_loyalty", tags="level=gold", displayName="Gold", unit=MetricUnits.NONE)
+	public int getGold() {
+		return gold;
+	}
+
+	@Gauge(name="account_loyalty", tags="level=platinum", displayName="Platinum", unit=MetricUnits.NONE)
+	public int getPlatinum() {
+		return platinum;
+	}
+
+	@Gauge(name="account_loyalty", tags="level=unknown", displayName="Unknown", unit=MetricUnits.NONE)
+	public int getUnknown() {
+		return unknown;
 	}
 
 	private void logException(Throwable t) {
