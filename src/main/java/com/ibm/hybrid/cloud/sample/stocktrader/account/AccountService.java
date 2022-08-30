@@ -183,7 +183,6 @@ public class AccountService extends Application {
 
 		try {
 			basic=0; bronze=0; silver=0; gold=0; platinum=0; unknown=0; //reset loyalty level counts
-			metricRegistry.remove("loyalty_value");
 			for (int index=0; index<size; index++) {
 				Account account = accountArray[index];
 				logger.fine("account["+index+"]="+account);
