@@ -51,6 +51,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.auth.LoginConfig;
 
 //mpMetrics 2.0
+import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.metrics.annotation.Counted;
 
 //mpOpenTracing 1.3
@@ -111,6 +112,8 @@ public class AccountService extends Application {
 	private @Inject @ConfigProperty(name = "WATSON_ID", defaultValue = "apikey") String watsonId;
 	private @Inject @ConfigProperty(name = "WATSON_PWD") String watsonPwd; //if using an API Key, it goes here
 
+	@Inject JsonWebToken token;
+
 	// Override ODM Client URL if secret is configured to provide URL
 	static {
 		String mpUrlPropName = ODMClient.class.getName() + "/mp-rest/url";
@@ -139,6 +142,7 @@ public class AccountService extends Application {
 	public Account[] getAccounts() throws IOException {
 		List<Account> accountList = null;
 		int size = 0;
+		System.out.println("TOKEN ====== "+token);
 
 		try {
 			logger.fine("Entering getAccounts");

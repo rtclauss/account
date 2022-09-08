@@ -24,12 +24,14 @@
         <feature>appSecurity-2.0</feature>
         <feature>restConnector-2.0</feature>
 <!--    <feature>logstashCollector-1.0</feature> -->
+        <feature>mpGraphQL-1.0</feature>
     </featureManager>
 
     <variable name="AUTH_TYPE" defaultValue="basic"/>
     <variable name="MQ_KIND" defaultValue="ibm-mq"/>
     <variable name="CLOUDANT_TYPE" defaultValue="cloudant"/>
     <variable name="TRACE_SPEC" defaultValue="*=info"/>
+    <variable name="io.openliberty.enableGraphQLUI" value="true" />
 
     <logging traceSpecification="${TRACE_SPEC}" consoleLogLevel="INFO" />
 

@@ -133,9 +133,58 @@ public class AccountUtilities {
 		return loyalty;
 	}
 
+	@Traced
+	public String invokeODM(ODMClient odmClient, String odmId, String odmPwd, String owner, double overallTotal, String oldLoyalty, String user) {
+		String loyalty = null;
+		ODMLoyaltyRule input = new ODMLoyaltyRule(overallTotal);
+		try {
+			String credentials = odmId+":"+odmPwd;
+			String basicAuth = "Basic "+Base64.getEncoder().encodeToString(credentials.getBytes());
+
+			try {
+				//call the LoyaltyLevel business rule to get the current loyalty level of this portfolio
+				logger.fine("Calling loyalty-level ODM business rule for "+owner);
+				ODMLoyaltyRule result = odmClient.getLoyaltyLevel(basicAuth, input);
+
+				loyalty = result.determineLoyalty();
+				logger.fine("New loyalty level for "+owner+" is "+loyalty);
+			} catch (Throwable t) {
+				logger.warning("Error invoking ODM:" + t.getClass().getName() + ": "+t.getMessage() + ".  Loyalty level will remain unchanged.");
+				if (!odmBroken) logException(t);
+				odmBroken = true; //so logs aren't full of this stack trace on every getAccount
+			}
+
+			if ((oldLoyalty==null) || (loyalty==null)) return loyalty;
+			if (!oldLoyalty.equalsIgnoreCase(loyalty)) try {
+				logger.info("Change in loyalty level detected.");
+
+				LoyaltyChange message = new LoyaltyChange(owner, oldLoyalty, loyalty);
+
+				if (user != null) message.setId(user);
+
+				logger.fine(message.toString());
+
+				invokeJMS(message);
+			} catch (JMSException jms) { //in case MQ is not configured, just log the exception and continue
+				logger.warning("Unable to send message to JMS provider.  Continuing without notification of change in loyalty level.");
+				logException(jms);
+				Exception linked = jms.getLinkedException(); //get the nested exception from MQ
+				if (linked != null) logException(linked);
+			} catch (Throwable t) { //in case MQ is not configured, just log the exception and continue
+				logger.warning("An unexpected error occurred.  Continuing without notification of change in loyalty level.");
+				logException(t);
+			}
+		} catch (Throwable t) {
+			logger.warning("Unable to get loyalty level, via "+input.toString()+".  Using cached value instead");
+			logException(t);
+			loyalty = oldLoyalty;
+		}
+		return loyalty;
+	}
+
 	/** Use the Watson Tone Analyzer to determine the user's sentiment */
 	@Traced
-	Feedback invokeWatson(WatsonClient watsonClient, String watsonId, String watsonPwd, WatsonInput input) {
+	public Feedback invokeWatson(WatsonClient watsonClient, String watsonId, String watsonPwd, WatsonInput input) {
 		String sentiment = "Unknown";
 		try {
 			String credentials = watsonId + ":" + watsonPwd; //Watson accepts basic auth
@@ -196,7 +245,7 @@ public class AccountUtilities {
 		}
 	}
 
-	double getCommission(String loyalty) {
+	public double getCommission(String loyalty) {
 		//TODO: turn this into an ODM business rule or a FaaS function (such as in AWS Lambda)
 		double commission = 9.99;
 		logger.fine("Determining commission - loyalty level = "+loyalty);
