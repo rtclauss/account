@@ -7,6 +7,9 @@ import com.ibm.hybrid.cloud.sample.stocktrader.account.jnosql.db.AccountReposito
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.Feedback;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.WatsonInput;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.graphql.Account;
+import io.opentracing.Scope;
+import io.opentracing.Span;
+import io.opentracing.Tracer;
 import jakarta.nosql.mapping.Database;
 import jakarta.nosql.mapping.DatabaseType;
 import jakarta.nosql.mapping.Pagination;
@@ -26,8 +29,10 @@ import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @ApplicationScoped
+@Traced
 public class AccountService {
     private static final Logger logger = Logger.getLogger(AccountService.class.getName());
     private static final String FAIL = "FAIL";
@@ -60,6 +65,9 @@ public class AccountService {
     @ConfigProperty(name = "WATSON_ID", defaultValue = "apikey") String watsonId;
     private @Inject
     @ConfigProperty(name = "WATSON_PWD") String watsonPwd; //if using an API Key, it goes here
+
+    // OpenTracing tracer
+    private @Inject Tracer tracer;
 
     // Override ODM Client URL if secret is configured to provide URL
     static {
@@ -94,15 +102,54 @@ public class AccountService {
             }
 
             String owner = account.getOwner();
-            boolean ownerExistInRepo = repository.findByOwner(owner).findFirst().isPresent();
-            if(ownerExistInRepo){
-                logger.warning("Account already exists for: "+owner);
-                throw new WebApplicationException("Account already exists for "+owner+"!", CONFLICT);
+            // rtclauss let's break this down to find where the slowdown is (9/20/22
+//            Span checkIfOwnerExistsSpan = tracer.buildSpan("repository.findByOwner(owner).findFirst().isPresent()").start();
+//            try(Scope childScope = tracer.scopeManager().activate(checkIfOwnerExistsSpan)) {
+//                boolean ownerExistInRepo = repository.findByOwner(owner).findFirst().isPresent();
+//                if (ownerExistInRepo) {
+//                    logger.warning("Account already exists for: " + owner);
+//                    throw new WebApplicationException("Account already exists for " + owner + "!", CONFLICT);
+//                }
+//            } finally {
+//                checkIfOwnerExistsSpan.finish();
+//            }
+
+//            Span checkIfOwnerExistsSpan = tracer.buildSpan("repository.findByOwner(owner).findFirst().isPresent()").start();
+//            try(Scope childScope = tracer.scopeManager().activate(checkIfOwnerExistsSpan)) {
+//                boolean ownerExistInRepo = repository.findByOwner(owner).findFirst().isPresent();
+//                if (ownerExistInRepo) {
+//                    logger.warning("Account already exists for: " + owner);
+//                    throw new WebApplicationException("Account already exists for " + owner + "!", CONFLICT);
+//                }
+//            } finally {
+//                checkIfOwnerExistsSpan.finish();
+//            }
+
+            Stream<Account> accountOwnerStream ;
+            Span findByOwnerQuerySpan = tracer.buildSpan("repository.findByOwner(owner)").start();
+            try(Scope childScope = tracer.scopeManager().activate(findByOwnerQuerySpan)) {
+                accountOwnerStream = repository.findByOwner(owner);
+            } finally {
+                findByOwnerQuerySpan.finish();
             }
 
-            logger.fine("Creating account for " + account.getOwner());
+            boolean ownerExistInRepo;
+            Span checkIfOwnerExists = tracer.buildSpan("accountOwnerStream.findFirst().isPresent()").start();
+            try(Scope childScope = tracer.scopeManager().activate(checkIfOwnerExists)) {
+                ownerExistInRepo = accountOwnerStream.findFirst().isPresent();
+            } finally {
+                checkIfOwnerExists.finish();
+            }
 
-            Account response = repository.save(account);
+            if (ownerExistInRepo) {
+                logger.warning("Account already exists for: " + owner);
+                throw new WebApplicationException("Account already exists for " + owner + "!", CONFLICT);
+            }
+
+
+
+            logger.fine("Creating account for " + account.getOwner());
+            Account response = saveAccountToDb(account);
             System.out.println(response);
             if (response != null) {
                 String id = response.getId();
@@ -119,9 +166,10 @@ public class AccountService {
         else {
             logger.warning("Owner is null in createAccount");
         }
-
         return account;
     }
+
+
 
     public List<Account> getAllAccounts() {
         List<Account> accountList = null;
@@ -130,7 +178,12 @@ public class AccountService {
         try {
             logger.fine("Entering getAccounts");
             if (repository != null) {
+                Span getAllAccountsSpan = tracer.buildSpan("repository.findAll().collect(Collectors.toList())").start();
+                try(Scope childScope = tracer.scopeManager().activate(getAllAccountsSpan)) {
                 accountList = repository.findAll().collect(Collectors.toList());
+                } finally {
+                    getAllAccountsSpan.finish();
+                }
                 size = accountList.size();
             } else {
                 logger.warning("accountDB is null, so returning empty array.  Investigate why the CDI injection failed for details");
@@ -163,7 +216,12 @@ public class AccountService {
             if (repository != null) {
                 logger.warning("Getting Page " + pageNumber + " with this many results on the page " + pageSize);
                 var page = Pagination.page(pageNumber).size(pageSize);
+                Span allAccountsInPagination = tracer.buildSpan("repository.findAll(page).collect(Collectors.toList())").start();
+                try(Scope childScope = tracer.scopeManager().activate(allAccountsInPagination)) {
                 accountList = repository.findAll(page).collect(Collectors.toList());
+                } finally {
+                    allAccountsInPagination.finish();
+                }
                 size = accountList.size();
             } else {
                 logger.warning("accountDB is null, so returning empty array.  Investigate why the CDI injection failed for details");
@@ -184,11 +242,14 @@ public class AccountService {
     public Account getAccount(String id) {
         Optional<Account> account = null;
         logger.fine("Entering getAccount");
-        try {
+        Span findByIdSpan = tracer.buildSpan("repository.findById(id)").start();
+        try(Scope childScope = tracer.scopeManager().activate(findByIdSpan)) {
             account = repository.findById(id);
         } catch (Throwable t) {
             logger.warning("Unknown error finding account for " + id);
             logException(t);
+        }finally {
+            findByIdSpan.finish();
         }
         return account.get();
     }
@@ -196,11 +257,14 @@ public class AccountService {
     public List<Account> getAccountsByName(String name) {
         List<Account> accounts = null;
         logger.fine("Entering getAccountsByName");
-        try {
+        Span findByOwnerNameSpan = tracer.buildSpan("repository.findByOwner(name).collect(Collectors.toList())").start();
+        try(Scope childScope = tracer.scopeManager().activate(findByOwnerNameSpan)) {
             accounts = repository.findByOwner(name).collect(Collectors.toList());
         } catch (Throwable t) {
             logger.warning("Unknown error finding account for " + name);
             logException(t);
+        }finally{
+            findByOwnerNameSpan.finish();
         }
         return accounts;
     }
@@ -216,13 +280,17 @@ public class AccountService {
 
             if (account != null) {
                 int freeTrades = account.getFree();
-
-                feedback = utilities.invokeWatson(watsonClient, watsonId, watsonPwd, input);
+                Span callWatsonSpan = tracer.buildSpan("utilities.invokeWatson(watsonClient, watsonId, watsonPwd, input)").start();
+                try(Scope childScope = tracer.scopeManager().activate(callWatsonSpan)) {
+                    feedback = utilities.invokeWatson(watsonClient, watsonId, watsonPwd, input);
+                }finally{
+                    callWatsonSpan.finish();
+                }
                 freeTrades += feedback.getFree();
 
                 account.setFree(freeTrades);
                 account.setSentiment(feedback.getSentiment());
-                repository.save(account);
+                saveAccountToDb(account);
 
                 logger.info("Returning feedback: " + feedback.toString());
             } else {
@@ -236,10 +304,11 @@ public class AccountService {
         return feedback;
     }
 
-    public String deleteAccount(String id) {
+    public Account deleteAccount(String id) {
         Account account = null;
         logger.fine("Entering deleteAccount for " + id);
-        try {
+        Span deleteAccountSpan = tracer.buildSpan(" repository.deleteById(id)").start();
+        try(Scope childScope = tracer.scopeManager().activate(deleteAccountSpan)) {
             account = getAccount(id);
 
             if (account != null) {
@@ -255,12 +324,14 @@ public class AccountService {
         } catch (Throwable t) {
             logger.warning("Error occurred in deleteAccount for " + id);
             logException(t);
+        }finally {
+            deleteAccountSpan.finish();
         }
 
-        return id;
+        return account;
     }
 
-    public Account updateAccount(String id, double tradeAmount) {
+    public Account updateAccount(String id, double portfolioTotal) {
         logger.fine("Entering updateAccount");
 
         Account account = null;
@@ -269,7 +340,8 @@ public class AccountService {
 
             if (account != null) {
                 String owner = account.getOwner();
-                String loyalty = calculateLoyalty(account);
+                String loyalty = calculateLoyalty(account, portfolioTotal);
+                account.setLoyalty(loyalty);
 
                 double commission = utilities.getCommission(loyalty);
 
@@ -291,9 +363,8 @@ public class AccountService {
                     account.setCommissions(commissions);
                     account.setBalance(balance);
                 }
-
                 logger.fine("Updating account into Cloudant: " + account);
-                repository.save(account);
+                account = saveAccountToDb(account);
             } else {
                 logger.warning("Account is null for " + id + " in updateAccount");
             }
@@ -305,20 +376,18 @@ public class AccountService {
         return account;
     }
 
-    public String calculateLoyalty(Account account) {
+    public String calculateLoyalty(Account account, double portfolioTotal) {
+        String loyalty;
         logger.fine("Invoking external business rule for " + account.getId());
 
         //this can be a call to either IBM ODM, or my simple Lambda function alternative, depending on the URL configured in the CR yaml
-        // TODO I know this isn't right but I want to press ahead. The old logic passed the "amount" of the current trade to calculate the loyalty
-        String loyalty = utilities.invokeODM(odmClient, odmId, odmPwd, account.getOwner(), account.getBalance(), account.getLoyalty(), this.token.getName());
-        if ((loyalty != null) && !loyalty.equalsIgnoreCase(account.getLoyalty())) { //don't rev the Cloudant doc if nothing's changed
-            account.setLoyalty(loyalty);
-
-            int free = account.getFree();
-            account.setNextCommission(free > 0 ? 0.0 : utilities.getCommission(loyalty));
-
-            // logger.fine("Calling accountDB.update() for " + account.get_id() + " in getAccount due to new loyalty level");
-            // accountDB.update(account);
+        Span odmSpan = tracer.buildSpan("utilities.invokeODM").start();
+        try(Scope childScope = tracer.scopeManager().activate(odmSpan)) {
+            loyalty = utilities.invokeODM(odmClient, odmId, odmPwd, account.getOwner(),
+                    portfolioTotal /* This should be the portfolio total value*/,
+                    account.getLoyalty(), this.token.getName());
+        }finally {
+            odmSpan.finish();
         }
         return loyalty;
     }
@@ -348,5 +417,16 @@ public class AccountService {
             t.printStackTrace(new PrintWriter(writer));
             logger.info(writer.toString());
         }
+    }
+
+    private Account saveAccountToDb(Account account) {
+        Span saveInDB = tracer.buildSpan("repository.save(account)").start();
+        Account response;
+        try(Scope childScope = tracer.scopeManager().activate(saveInDB)) {
+            response = repository.save(account);
+        }finally{
+            saveInDB.finish();
+        }
+        return response;
     }
 }

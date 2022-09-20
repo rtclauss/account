@@ -97,5 +97,7 @@
                 <special-subject type="ALL_AUTHENTICATED_USERS" id="IBMid"/>
             </security-role>
         </application-bnd>
+        <!-- needed for graphql smallrye class access -->
+        <classloader apiTypeVisibility="+third-party"/>
     </webApplication>
 </server>

@@ -84,6 +84,7 @@ public class AccountUtilities {
 
 	/** Invoke a business rule to determine the loyalty level corresponding to an account balance */
 	@Traced
+	@Deprecated
 	String invokeODM(ODMClient odmClient, String odmId, String odmPwd, String owner, double overallTotal, String oldLoyalty, HttpServletRequest request) {
 		String loyalty = null;
 		ODMLoyaltyRule input = new ODMLoyaltyRule(overallTotal);
