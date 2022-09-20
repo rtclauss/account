@@ -52,9 +52,10 @@ import org.eclipse.microprofile.auth.LoginConfig;
 
 //mpMetrics 2.0
 import org.eclipse.microprofile.metrics.annotation.Counted;
+/* Commenting out until https://github.com/OpenLiberty/open-liberty/issues/22592 is addressed
 import org.eclipse.microprofile.metrics.annotation.Gauge;
 import org.eclipse.microprofile.metrics.MetricUnits;
-
+*/
 
 //mpOpenTracing 1.3
 import org.eclipse.microprofile.opentracing.Traced;
@@ -181,6 +182,7 @@ public class AccountService extends Application {
 
 		logger.fine("Returning "+size+" accounts");
 
+/* Commenting out until https://github.com/OpenLiberty/open-liberty/issues/22592 is addressed
 		try {
 			basic=0; bronze=0; silver=0; gold=0; platinum=0; unknown=0; //reset loyalty level counts
 			for (int index=0; index<size; index++) {
@@ -200,6 +202,7 @@ public class AccountService extends Application {
 		} catch (Throwable t) {
 			logException(t);
 		}
+*/
 		return accountArray;
 	}
 
@@ -434,6 +437,7 @@ public class AccountService extends Application {
 		return delay;
 	}
 
+/* Commenting out until https://github.com/OpenLiberty/open-liberty/issues/22592 is addressed
 	@Gauge(name="account_loyalty", tags="level=basic", displayName="Basic", unit=MetricUnits.NONE)
 	public int getBasic() {
 		return basic;
@@ -463,7 +467,7 @@ public class AccountService extends Application {
 	public int getUnknown() {
 		return unknown;
 	}
-
+*/
 	private void logException(Throwable t) {
 		logger.warning(t.getClass().getName()+": "+t.getMessage());
 
