@@ -1,11 +1,17 @@
+app:
+  createDummyAccounts: true
+
 spring:
   couchbase:
     username: Administrator
     password: 123456
     connection-string: "couchbase://account_couchdb"
-    bucket: "default"
+    bucket: "accounts_bucket"
+
+  graphql:
+    graphiql:
+      enabled: true
+      path: /graphiql
 
 
-#cluster account_db_cluster
-#Username Administrator
-#Password 123456
+#http://localhost:8091

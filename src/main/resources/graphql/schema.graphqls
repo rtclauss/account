@@ -1,0 +1,18 @@
+type Account {
+    id: String
+    owner: String
+    loyalty: String
+    balance: Float
+    commissions: Float
+    free: Int
+    sentiment: String
+    nextCommission: Float
+    operation: String
+}
+
+type Query {
+    allAccounts: [Account]
+    allAccountsByPage(pageNumber: Int, pageSize: Int): [Account]
+    retrieveAccountById(ownerId: String): Account
+    retrieveAccountsByOwnerName(ownerName: String): [Account]
+}

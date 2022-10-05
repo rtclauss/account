@@ -4,7 +4,6 @@ public class ODMLoyaltyRule {
 
     private LoyaltyDecision theLoyaltyDecision = null;
 
-
     public ODMLoyaltyRule() { //default constructor
     }
 
