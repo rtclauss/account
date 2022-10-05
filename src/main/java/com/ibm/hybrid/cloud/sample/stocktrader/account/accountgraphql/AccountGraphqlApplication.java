@@ -6,8 +6,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class AccountGraphqlApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(AccountGraphqlApplication.class, args);
-	}
+    public static void main(String[] args) {
+        SpringApplication.run(AccountGraphqlApplication.class, args);
+    }
 
 }

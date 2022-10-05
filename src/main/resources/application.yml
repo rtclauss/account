@@ -1,0 +1,11 @@
+spring:
+  couchbase:
+    username: Administrator
+    password: 123456
+    connection-string: "couchbase://account_couchdb"
+    bucket: "default"
+
+
+#cluster account_db_cluster
+#Username Administrator
+#Password 123456

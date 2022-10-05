@@ -1,0 +1,39 @@
+version: '3'
+
+services:
+  account_web:
+    build: .
+    ports:
+      - "8080:8080"
+    command: >
+      sh -c "mvn -Duser.home=/var/maven clean spring-boot:run"
+    volumes:
+      - C:\Users\INV-0200\.m2:/var/maven/.m2
+      - .:/app
+    environment:
+      MAVEN_CONFIG: /var/maven/.m2
+    networks:
+      - account_network
+    depends_on:
+      - account_couchdb
+
+  account_couchdb:
+    image: couchbase:7.0.3
+    ports:
+      - "8091-8097:8091-8097"
+      - "11210:11210"
+      - "11207:11207"
+      - "18091-18095:18091-18095"
+      - "18096:18096"
+      - "18097:18097"
+    environment:
+      COUCHDB_USER: root
+      COUCHDB_PASSWORD: 1234
+    volumes:
+      - C:\Users\INV-0200\Documents\shared_docker\account_db:/opt/couchbase/var
+    networks:
+      - account_network
+
+networks:
+  account_network:
+    driver: bridge
