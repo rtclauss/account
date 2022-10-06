@@ -1,11 +1,11 @@
 package com.ibm.hybrid.cloud.sample.stocktrader.account.accountgraphql.json;
 
+import lombok.NoArgsConstructor;
+
+@NoArgsConstructor
 public class ODMLoyaltyRule {
 
     private LoyaltyDecision theLoyaltyDecision = null;
-
-    public ODMLoyaltyRule() { //default constructor
-    }
 
     public ODMLoyaltyRule(double tradeTotal) { //convenience constructor
         LoyaltyDecision newLoyaltyDecision = new LoyaltyDecision(tradeTotal);
@@ -22,7 +22,8 @@ public class ODMLoyaltyRule {
 
     public String determineLoyalty() {
         String loyalty = "Unknown";
-        if (theLoyaltyDecision != null) loyalty = theLoyaltyDecision.getLoyalty();
+        if (theLoyaltyDecision != null)
+            loyalty = theLoyaltyDecision.getLoyalty();
         return loyalty;
     }
 }

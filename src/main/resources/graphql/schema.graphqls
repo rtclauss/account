@@ -1,3 +1,17 @@
+type Query {
+    allAccounts: [Account]
+    allAccountsByPage(pageSize: Int, pageNumber: Int): [Account]
+    retrieveAccountById(id: String): Account
+    retrieveAccountsByOwnerName(ownerName: String): [Account]
+}
+
+type Mutation {
+    createAccount(ownerName: String): Account
+    submitFeedback(id: String, watsonInput: WatsonInput): Feedback
+    deleteAccount(id: String): Account
+    updateAccount(id: String, portfolioTotal: Float): Account
+}
+
 type Account {
     id: String
     owner: String
@@ -10,9 +24,12 @@ type Account {
     operation: String
 }
 
-type Query {
-    allAccounts: [Account]
-    allAccountsByPage(pageNumber: Int, pageSize: Int): [Account]
-    retrieveAccountById(ownerId: String): Account
-    retrieveAccountsByOwnerName(ownerName: String): [Account]
+type Feedback {
+    message: String
+    free: Int
+    sentiment: String
+}
+
+input WatsonInput {
+    text: String
 }

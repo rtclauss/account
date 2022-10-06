@@ -16,6 +16,7 @@ services:
       - account_network
     depends_on:
       - account_couchdb
+      - account_activemq
 
   account_couchdb:
     image: couchbase:7.0.3
@@ -31,6 +32,14 @@ services:
       COUCHDB_PASSWORD: 1234
     volumes:
       - C:\Users\INV-0200\Documents\shared_docker\account_db:/opt/couchbase/var
+    networks:
+      - account_network
+
+  account_activemq:
+    image: symptoma/activemq:5.16.0
+    ports:
+      - "61616:61616"
+      - "8161:8161"
     networks:
       - account_network
 

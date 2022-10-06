@@ -44,4 +44,31 @@ public class Account {
 
     @Field
     private String operation;
+
+    public void setSentimentAndFree(Feedback feedback) {
+        setFree(free + feedback.getFree());
+        setSentiment(feedback.getSentiment());
+    }
+
+    public double calculateCommission() {
+        if (loyalty.equalsIgnoreCase(LoyaltyType.BRONZE)) {
+            return 8.99;
+        } else if (loyalty.equalsIgnoreCase(LoyaltyType.SILVER)) {
+            return 7.99;
+        } else if (loyalty.equalsIgnoreCase(LoyaltyType.GOLD)) {
+            return 6.99;
+        } else if (loyalty.equalsIgnoreCase(LoyaltyType.PLATINUM)) {
+            return 5.99;
+        }
+        return 9.99;
+    }
+
+    public void updateBalanceAndCommissions(double commission) {
+        if (free > 0) {
+            setFree(--free);
+        } else {
+            setCommissions(commissions + commission);
+            setBalance(balance - commission);
+        }
+    }
 }

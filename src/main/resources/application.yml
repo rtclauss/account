@@ -1,5 +1,5 @@
 app:
-  createDummyAccounts: true
+  createDummyAccounts: false
 
 spring:
   couchbase:
@@ -7,6 +7,11 @@ spring:
     password: 123456
     connection-string: "couchbase://account_couchdb"
     bucket: "accounts_bucket"
+
+  activemq:
+    broker-url: tcp://account_activemq
+    user: root
+    password: 1234
 
   graphql:
     graphiql:
