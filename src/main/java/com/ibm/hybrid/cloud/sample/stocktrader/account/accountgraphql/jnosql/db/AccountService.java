@@ -82,6 +82,8 @@ public class AccountService {
                         .fOwner(account.getOwner())
                         .fOld(account.getLoyalty())
                         .fNew(newLoyalty)
+                        .build()
+                        .toJson()
         );
     }
 

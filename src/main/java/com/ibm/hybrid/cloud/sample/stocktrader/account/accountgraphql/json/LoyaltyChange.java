@@ -17,4 +17,8 @@ public class LoyaltyChange {
     private String fNew;
     private String fId;
 
+    public String toJson() {
+        return "{\"owner\": \"" + fOwner + "\", \"old\": \"" + fOld + "\", \"new\": \"" + fNew + "\", \"id\": \"" + fId + "\"}";
+    }
+
 }

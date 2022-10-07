@@ -15,10 +15,10 @@ services:
     networks:
       - account_network
     depends_on:
-      - account_couchdb
-      - account_activemq
+      - account-couchdb
+      - account-activemq
 
-  account_couchdb:
+  account-couchdb:
     image: couchbase:7.0.3
     ports:
       - "8091-8097:8091-8097"
@@ -35,13 +35,16 @@ services:
     networks:
       - account_network
 
-  account_activemq:
+  account-activemq:
     image: symptoma/activemq:5.16.0
     ports:
       - "61616:61616"
       - "8161:8161"
+    volumes:
+      - C:\Users\INV-0200\Documents\shared_docker\activemq_conf\conf:/opt/activemq/conf
     networks:
       - account_network
+
 
 networks:
   account_network:
