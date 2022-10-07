@@ -76,6 +76,7 @@ public class AccountService {
     }
 
     private void sendMessage(Account account, String newLoyalty) {
+        //to be added with spring security and validate jwt
         jmsTemplate.convertAndSend(
                 LoyaltyChange.builder()
                         .fId("test_id")

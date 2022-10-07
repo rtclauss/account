@@ -22,6 +22,7 @@ public class AccountController {
         this.accountService = accountRepository;
     }
 
+    //todo ask about traced annotations counted and timed
     @QueryMapping
     public List<Account> allAccounts() {
         log.info("getting all accounts");
