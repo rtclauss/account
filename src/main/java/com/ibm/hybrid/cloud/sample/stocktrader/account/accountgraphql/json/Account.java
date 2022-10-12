@@ -1,14 +1,13 @@
 package com.ibm.hybrid.cloud.sample.stocktrader.account.accountgraphql.json;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.groocraft.couchdb.slacker.annotation.Document;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.couchbase.core.mapping.Document;
-import org.springframework.data.couchbase.core.mapping.Field;
-import org.springframework.data.couchbase.core.mapping.id.GeneratedValue;
-import org.springframework.data.couchbase.core.mapping.id.GenerationStrategy;
+
 
 @Data
 @Builder
@@ -17,32 +16,36 @@ import org.springframework.data.couchbase.core.mapping.id.GenerationStrategy;
 @NoArgsConstructor
 public class Account {
 
-    @Id
-    @GeneratedValue(strategy = GenerationStrategy.UNIQUE)
+    @JsonProperty("_id")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private String id;
 
-    @Field
+    @JsonProperty("_rev")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String revision;
+
+    @JsonProperty
     private String owner;
 
-    @Field
+    @JsonProperty
     private String loyalty;
 
-    @Field
+    @JsonProperty
     private double balance;
 
-    @Field
+    @JsonProperty
     private double commissions;
 
-    @Field
+    @JsonProperty
     private int free;
 
-    @Field
+    @JsonProperty
     private String sentiment;
 
-    @Field
+    @JsonProperty
     private double nextCommission;
 
-    @Field
+    @JsonProperty
     private String operation;
 
     public void setSentimentAndFree(Feedback feedback) {

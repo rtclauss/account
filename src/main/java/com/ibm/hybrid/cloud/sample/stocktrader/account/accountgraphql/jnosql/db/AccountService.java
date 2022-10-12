@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 @Service
 public class AccountService {
@@ -30,11 +32,12 @@ public class AccountService {
     }
 
     public List<Account> getAllAccounts() {
-        return accountRepository.findAll();
+        return StreamSupport.stream(accountRepository.findAll().spliterator(), false)
+                .collect(Collectors.toList());
     }
 
     public List<Account> getAllAccounts(int pageSize, int pageNumber) {
-        var pageRequest = PageRequest.of(pageNumber, pageSize);
+        var pageRequest = PageRequest.of(Math.abs(pageNumber), Math.abs(pageSize));
         return accountRepository.findAll(pageRequest).getContent();
     }
 

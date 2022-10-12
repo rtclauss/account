@@ -19,19 +19,14 @@ services:
       - account-activemq
 
   account-couchdb:
-    image: couchbase:7.0.3
+    image: couchdb:3.2.2
     ports:
-      - "8091-8097:8091-8097"
-      - "11210:11210"
-      - "11207:11207"
-      - "18091-18095:18091-18095"
-      - "18096:18096"
-      - "18097:18097"
+      - "5984:5984"
     environment:
       COUCHDB_USER: root
       COUCHDB_PASSWORD: 1234
     volumes:
-      - C:\Users\INV-0200\Documents\shared_docker\account_db:/opt/couchbase/var
+      - C:\Users\INV-0200\Documents\shared_docker\account_db:/opt/couchdb/data
     networks:
       - account_network
 

@@ -1,14 +1,18 @@
 package com.ibm.hybrid.cloud.sample.stocktrader.account.accountgraphql;
 
+import com.groocraft.couchdb.slacker.annotation.EnableCouchDbRepositories;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.accountgraphql.jnosql.db.AccountService;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.accountgraphql.json.Account;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.core.env.Environment;
 
 @SpringBootApplication
+@EnableCouchDbRepositories
+@EntityScan
 public class AccountGraphqlApplication implements CommandLineRunner {
 
     private final AccountService accountService;
