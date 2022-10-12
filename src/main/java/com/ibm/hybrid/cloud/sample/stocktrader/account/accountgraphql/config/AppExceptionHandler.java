@@ -6,9 +6,7 @@ import graphql.schema.DataFetchingEnvironment;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.graphql.execution.DataFetcherExceptionResolverAdapter;
 import org.springframework.graphql.execution.ErrorType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 
 @Slf4j
 @ControllerAdvice
@@ -24,11 +22,5 @@ public class AppExceptionHandler extends DataFetcherExceptionResolverAdapter {
                     .build();
         }
         return super.resolveToSingleError(ex, env);
-    }
-
-    @ExceptionHandler(AccountNotFoundException.class)
-    public ResponseEntity<?> notFoundHandler() {
-
-        return ResponseEntity.notFound().build();
     }
 }
