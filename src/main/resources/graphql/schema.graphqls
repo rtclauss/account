@@ -1,7 +1,7 @@
 type Query {
     allAccounts: [Account]
     allAccountsByPage(pageSize: Int, pageNumber: Int): [Account]
-    retrieveAccountById(id: String): Account
+    retrieveAccountById(ownerId: String): Account
     retrieveAccountsByOwnerName(ownerName: String): [Account]
 }
 

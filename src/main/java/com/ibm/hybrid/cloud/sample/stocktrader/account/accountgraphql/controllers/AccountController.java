@@ -37,8 +37,8 @@ public class AccountController {
 
     @Timed(value = "account.by-id", description = "How long does it take to get an Account by id")
     @QueryMapping(name = "retrieveAccountById")
-    public Account getAccountById(@Argument String id) {
-        return accountService.getAccountById(id);
+    public Account getAccountById(@Argument String ownerId) {
+        return accountService.getAccountById(ownerId);
     }
 
     @Timed(value = "account.by-owner-name", description = "How long does it take to get an Accounts from owner")
