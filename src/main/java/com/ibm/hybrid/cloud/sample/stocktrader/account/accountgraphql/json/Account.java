@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 
 @Data
 @Builder
-@Document
+@Document("account") //TODO can this be exposed via secret or hard code?
 @AllArgsConstructor
 @NoArgsConstructor
 public class Account {
