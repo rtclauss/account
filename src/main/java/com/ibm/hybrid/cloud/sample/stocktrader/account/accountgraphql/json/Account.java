@@ -45,9 +45,6 @@ public class Account {
     @JsonProperty
     private double nextCommission;
 
-    @JsonProperty
-    private String operation;
-
     public void setSentimentAndFree(Feedback feedback) {
         setFree(free + feedback.getFree());
         setSentiment(feedback.getSentiment());

@@ -21,7 +21,6 @@ type Account {
     free: Int
     sentiment: String
     nextCommission: Float
-    operation: String
 }
 
 type Feedback {

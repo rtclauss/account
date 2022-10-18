@@ -41,7 +41,6 @@ public class AccountGraphqlApplication implements CommandLineRunner {
                             .free(2)
                             .sentiment("test")
                             .nextCommission(0)
-                            .operation("operation")
                             .build()
             );
         }
