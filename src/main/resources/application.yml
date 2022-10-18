@@ -34,4 +34,4 @@ management:
     web:
       base-path: /
       exposure:
-        include: metrics
+        include: metrics,health
