@@ -6,6 +6,6 @@ COPY . /app
 
 WORKDIR /app
 
-RUN mvn clean package spring-boot:repackage
+RUN mvn clean package spring-boot:repackage -DskipTests=true
 
 CMD ["java", "-jar", "target/account-graphql-0.0.1.jar"]
