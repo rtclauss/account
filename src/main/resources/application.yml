@@ -1,7 +1,15 @@
 app:
   createDummyAccounts: false
 
+server:
+  port: 9080
+  servlet:
+    context-path: /account
+
 spring:
+  application:
+    name: account-spring-graphql
+
   activemq:
     broker-url: tcp://account-activemq:61616
     user: admin
@@ -9,7 +17,7 @@ spring:
 
   jms:
     template:
-      default-destination: account_queue
+      default-destination: LoyaltyLevelChange
 
   graphql:
     graphiql:
@@ -24,6 +32,22 @@ couchdb:
     initialization-strategy: single
     schema-operation: create
 
+#logging:
+#  level:
+#    io.opentracing: DEBUG
+#    com.groocraft: DEBUG
+#    org.springframework.graphql: DEBUG
+
+opentracing:
+  jaeger:
+    enabled: true
+    enable-b3-propagation: true
+    probabilistic-sampler:
+      sampling-rate: 1.0
+    http-sender:
+      url: http://jaeger-collector.istio-system.svc:14268/api/traces
+      log-spans: true
+
 management:
   endpoint:
     health:
@@ -31,6 +55,9 @@ management:
         enabled: true
 
   endpoints:
+    health:
+      base-path: "/health"
+      path-mapping: ""
     web:
       base-path: /
       exposure:
