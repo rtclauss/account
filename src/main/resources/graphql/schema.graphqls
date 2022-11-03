@@ -2,7 +2,8 @@ type Query {
     allAccounts: [Account]
     allAccountsByPage(pageSize: Int, pageNumber: Int): [Account]
     retrieveAccountById(ownerId: String): Account
-    retrieveAccountsByOwnerName(ownerName: String): [Account]
+    retrieveAccountByOwnerName(ownerName: String): [Account]
+    retrieveAccountsByOwner(owners: [String]): [Account]
 }
 
 type Mutation {
