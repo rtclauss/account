@@ -45,6 +45,17 @@
         </dependency>
         <!-- project docs https://github.com/Majlanky/couch-slacker-->
         <dependency>
+            <groupId>io.opentracing.contrib</groupId>
+            <artifactId>opentracing-spring-jaeger-web-starter</artifactId>
+            <version>3.3.1</version>
+        </dependency>
+        <dependency>
+            <groupId>io.opentracing.contrib</groupId>
+            <artifactId>opentracing-spring-web-starter</artifactId>
+            <version>4.1.0</version>
+        </dependency>
+        <!-- jaeger tracing -->
+        <dependency>
             <groupId>com.groocraft</groupId>
             <artifactId>couch-slacker</artifactId>
             <version>2.4.1</version>

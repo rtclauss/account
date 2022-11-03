@@ -3,10 +3,7 @@ package com.ibm.hybrid.cloud.sample.stocktrader.account.accountgraphql.json;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.groocraft.couchdb.slacker.annotation.Document;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 
 @Data
@@ -14,6 +11,7 @@ import lombok.NoArgsConstructor;
 @Document("account") //TODO can this be exposed via secret or hard code?
 @AllArgsConstructor
 @NoArgsConstructor
+@ToString
 public class Account {
 
     @JsonProperty("_id")
