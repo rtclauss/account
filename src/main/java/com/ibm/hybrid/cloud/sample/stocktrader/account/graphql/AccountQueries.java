@@ -17,7 +17,6 @@ import java.util.logging.Logger;
 @Traced
 @GraphQLApi
 public class AccountQueries {
-
     private static Logger LOGGER = Logger.getLogger(AccountQueries.class.getName());
     @Inject
     AccountService accountService;
@@ -31,6 +30,14 @@ public class AccountQueries {
     // This could be added to the GraphQL standard in Microprofile at a later date.
     //@Inject Context context;
 
+    /**
+     * Retrieve all accounts in the account database.
+     * @deprecated
+     * This is an expensive operation. Use the pagination API instead @service {@link com.ibm.hybrid.cloud.sample.stocktrader.account.graphql.AccountQueries#getAllAccounts(Integer, Integer)}
+     *
+     * @return a List of all accounts
+     */
+    @Deprecated
     @Query("allAccounts")
     @Description("Retrieve all accounts. This can be an expensive operation. Please use pagination API first.")
     @Timed(name = "getAccountsTimer", description = "How long does it take to get all Accounts", unit = MetricUnits.NANOSECONDS)
@@ -55,6 +62,18 @@ public class AccountQueries {
         return allAccounts;
     }
 
+    @Query("retrieveAccountsByOwner")
+    @Description("Get all accounts data from a list of owners")
+    @Timed(name = "retrieveAccountsByOwnerTimer", description = "How long does it take to get the list of Accounts", unit = MetricUnits.NANOSECONDS)
+    @Counted(name = "retrieveAccountsByOwnerCount", displayName = "Get the list of specific Stock Trader accounts", description = "Number of times a list of accounts retrieved in the Stock Trader application")
+    @RolesAllowed({"StockTrader", "StockViewer"})
+    public List<Account> getAccountsByOwner(@Description("List of owner names to retrieve details for") List<String> owners) {
+        LOGGER.fine("GraphQL AccountQueries.getAccountsByOwner(" + owners+ ")");
+
+        var allAccounts = accountService.getAccountsByOwner(owners);
+        return allAccounts;
+    }
+
     @Query("retrieveAccountById")
     @Timed(name = "getAccountTimer", description = "How long does it take to get an Account", unit = MetricUnits.NANOSECONDS)
     @Counted(name = "getAccountCount", displayName = "Get Stock Trader account", description = "Number of accounts retrieved in the Stock Trader application")
@@ -64,13 +83,13 @@ public class AccountQueries {
         return accountService.getAccount(ownerId);
     }
 
-    @Query("retrieveAccountsByOwnerName")
+    @Query("retrieveAccountByOwnerName")
     @Timed(name = "getAccountTimer", description = "How long does it take to get an Account", unit = MetricUnits.NANOSECONDS)
     @Counted(name = "getAccountCount", displayName = "Get Stock Trader account", description = "Number of accounts retrieved in the Stock Trader application")
     @RolesAllowed({"StockTrader", "StockViewer"})
-    public List<Account> getAccountsByOwnerName(@Name("owner") String ownerName) {
+    public Account getAccountByOwnerName(@Name("owner") String ownerName) {
         LOGGER.fine("GraphQL AccountQueries.getAccountsByOwnerName(" + ownerName + ")");
-        return accountService.getAccountsByName(ownerName);
+        return accountService.getAccountByOwnerName(ownerName);
     }
 
     // Let's treat the following as @Source items that are calculated only if needed/queried for!

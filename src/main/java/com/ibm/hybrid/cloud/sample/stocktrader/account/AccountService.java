@@ -235,7 +235,8 @@ public class AccountService extends Application {
 						int free = account.getFree();
 						account.setNextCommission(free>0 ? 0.0 : utilities.getCommission(loyalty));
 	
-						if (!delayUpdate(request)) { //if called from updateAccount, let it drive the update to Cloudant
+						if (!delayUpdate(request)) { //if called from 
+							// updateAccount, let it drive the update to Cloudant
 							logger.fine("Calling accountDB.update() for "+id+" in getAccount due to new loyalty level");
 							accountDB.update(account);
 						}

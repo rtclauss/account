@@ -24,6 +24,8 @@ import javax.ws.rs.BadRequestException;
 import javax.ws.rs.WebApplicationException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
@@ -48,7 +50,6 @@ public class AccountService {
     @Inject
     @Database(DatabaseType.DOCUMENT)
     private AccountRepository repository;
-
 
     private @Inject
     @RestClient ODMClient odmClient;
@@ -125,10 +126,10 @@ public class AccountService {
 //                checkIfOwnerExistsSpan.finish();
 //            }
 
-            Stream<Account> accountOwnerStream ;
+            Optional<Account> accountOwner;
             Span findByOwnerQuerySpan = tracer.buildSpan("repository.findByOwner(owner)").start();
             try(Scope childScope = tracer.scopeManager().activate(findByOwnerQuerySpan)) {
-                accountOwnerStream = repository.findByOwner(owner);
+                accountOwner = repository.findByOwner(owner);
             } finally {
                 findByOwnerQuerySpan.finish();
             }
@@ -136,7 +137,7 @@ public class AccountService {
             boolean ownerExistInRepo;
             Span checkIfOwnerExists = tracer.buildSpan("accountOwnerStream.findFirst().isPresent()").start();
             try(Scope childScope = tracer.scopeManager().activate(checkIfOwnerExists)) {
-                ownerExistInRepo = accountOwnerStream.findFirst().isPresent();
+                ownerExistInRepo = accountOwner.isPresent();
             } finally {
                 checkIfOwnerExists.finish();
             }
@@ -239,6 +240,55 @@ public class AccountService {
         return accountList;
     }
 
+    public List<Account> getAccountsByOwner(List<String> owners) {
+        var accountList = new ArrayList<Account>();
+        int size = 0;
+
+        try {
+            logger.fine("Entering getAccounts");
+            if (repository != null) {
+                Span allAccountsByOwners = tracer.buildSpan("repository.findAll(page).collect(Collectors.toList())").start();
+                try(Scope childScope = tracer.scopeManager().activate(allAccountsByOwners)) {
+                    // @rtclauss
+                    // This is inefficient but a hacky workaround until the commented out section below is fixed
+                    // This doesn't work wither as a regular stream or a parallel stream
+                    /* accountList = owners.stream()
+                            .map(ownerName -> repository.findByOwner(ownerName))
+                            .flatMap(Optional::stream) // Filter out the accounts we didn't find.
+                            .collect(Collectors.toList());
+                    */
+                    // @rtclauss an old school way of looping
+                    for(String ownerName: owners){
+                        var account = repository.findByOwner(ownerName);
+                        if(account.isPresent()){
+                            accountList.add(account.get());
+                        }
+                    }
+
+                    // @rtclauss
+                    // This is broken due to a bug in JNoSQL
+                    // GH Issue https://github.com/eclipse/jnosql-communication-driver/issues/185
+                    // accountList = repository.findByOwnerIn(owners);
+                } finally {
+                    allAccountsByOwners.finish();
+                }
+                size = accountList.size();
+            } else {
+                logger.warning("accountDB is null, so returning empty array.  Investigate why the CDI injection failed for details");
+            }
+        } catch (Throwable t) {
+            logger.warning("Failure getting accounts");
+            logException(t);
+        }
+
+        logger.fine("Returning " + size + " accounts");
+        if (logger.isLoggable(Level.FINE)) for (int index = 0; index < size; index++) {
+            Account account = accountList.get(index);
+            logger.fine("account[" + index + "]=" + account);
+        }
+        return accountList;
+    }
+
     public Account getAccount(String id) {
         Optional<Account> account = null;
         logger.fine("Entering getAccount");
@@ -254,19 +304,19 @@ public class AccountService {
         return account.get();
     }
 
-    public List<Account> getAccountsByName(String name) {
-        List<Account> accounts = null;
+    public Account getAccountByOwnerName(String name) {
+        Optional<Account> account = null;
         logger.fine("Entering getAccountsByName");
         Span findByOwnerNameSpan = tracer.buildSpan("repository.findByOwner(name).collect(Collectors.toList())").start();
         try(Scope childScope = tracer.scopeManager().activate(findByOwnerNameSpan)) {
-            accounts = repository.findByOwner(name).collect(Collectors.toList());
+            account = repository.findByOwner(name);
         } catch (Throwable t) {
             logger.warning("Unknown error finding account for " + name);
             logException(t);
         }finally{
             findByOwnerNameSpan.finish();
         }
-        return accounts;
+        return account.get();
     }
 
     public Feedback submitFeedback(String id, WatsonInput input) {
