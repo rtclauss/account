@@ -89,7 +89,6 @@
             <artifactId>couchdb-driver</artifactId>
             <version>1.0.0-b4</version>
         </dependency>
-
         <!-- GraphQL Dep -->
         <dependency>
             <groupId>org.eclipse.microprofile.graphql</groupId>
