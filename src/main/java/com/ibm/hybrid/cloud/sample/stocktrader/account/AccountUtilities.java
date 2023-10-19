@@ -1,5 +1,6 @@
 /*
-       Copyright 2020-2022 IBM Corp All Rights Reserved
+       Copyright 2020-2021 IBM Corp All Rights Reserved
+       Copyright 2022-2023 Kyndryl Corp, All Rights Reserved
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -77,6 +78,7 @@ public class AccountUtilities {
 
 	private static SimpleDateFormat timestampFormatter = null;
 
+	private static final boolean useJMS = Boolean.parseBoolean(System.getenv("MESSAGING_ENABLED"));
 	private static final String mqId = System.getenv("MQ_ID");
 	private static final String mqPwd = System.getenv("MQ_PASSWORD");
 
@@ -109,16 +111,18 @@ public class AccountUtilities {
 
 			if ((oldLoyalty==null) || (loyalty==null)) return loyalty;
 			if (!oldLoyalty.equalsIgnoreCase(loyalty)) try {
-				logger.info("Change in loyalty level detected.");
+				logger.info("Change in loyalty level detected for owner: "+owner);
 
-				LoyaltyChange message = new LoyaltyChange(owner, oldLoyalty, loyalty);
-	
-				String user = request.getRemoteUser(); //logged-in user
-				if (user != null) message.setId(user);
-	
-				logger.fine(message.toString());
-	
-				invokeJMS(message);
+				if (useJMS) {
+					LoyaltyChange message = new LoyaltyChange(owner, oldLoyalty, loyalty);
+		
+					String user = request.getRemoteUser(); //logged-in user
+					if (user != null) message.setId(user);
+		
+					logger.fine(message.toString());
+		
+					invokeJMS(message);
+				}
 			} catch (JMSException jms) { //in case MQ is not configured, just log the exception and continue
 				logger.warning("Unable to send message to JMS provider.  Continuing without notification of change in loyalty level.");
 				logException(jms);
