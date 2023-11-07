@@ -18,22 +18,13 @@ package com.ibm.hybrid.cloud.sample.stocktrader.account.client;
 
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.WatsonInput;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.WatsonOutput;
-
-import javax.enterprise.context.ApplicationScoped;
-
-import javax.ws.rs.ApplicationPath;
-import javax.ws.rs.Consumes;
-import javax.ws.rs.HeaderParam;
-import javax.ws.rs.POST;
-import javax.ws.rs.Produces;
-import javax.ws.rs.Path;
-
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.ws.rs.*;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 
-@ApplicationPath("/")
+
 @Path("/")
-@ApplicationScoped
-@RegisterRestClient
+@RegisterRestClient(configKey = "watson-client-config")
 /** mpRestClient "remote" interface for the stock quote microservice */
 public interface WatsonClient {
 	@POST

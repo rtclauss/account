@@ -1,5 +1,6 @@
 /*
        Copyright 2020-2022 IBM Corp All Rights Reserved
+       Copyright 2022-2023 Kyndryl Corp, All Rights Reserved
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -16,85 +17,50 @@
 
 package com.ibm.hybrid.cloud.sample.stocktrader.account;
 
+import com.cloudant.client.api.ClientBuilder;
+import com.cloudant.client.api.CloudantClient;
 import com.cloudant.client.api.Database;
 import com.cloudant.client.api.model.Response;
 import com.cloudant.client.org.lightcouch.DocumentConflictException;
 import com.cloudant.client.org.lightcouch.NoDocumentException;
-
 import com.ibm.hybrid.cloud.sample.stocktrader.account.client.ODMClient;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.client.WatsonClient;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.Account;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.Feedback;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.WatsonInput;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.security.RolesAllowed;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.*;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.MediaType;
+import org.eclipse.microprofile.auth.LoginConfig;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+// TODO Quarkus 3.5 does not support OpenTelemetry Metics yet
+//import org.eclipse.microprofile.metrics.annotation.Counted;
+import org.eclipse.microprofile.jwt.JsonWebToken;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.List;
-
-//Logging (JSR 47)
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-//CDI 2.0
-import javax.annotation.Resource;
-import javax.inject.Inject;
-import javax.enterprise.context.RequestScoped;
-
-//mpConfig 1.3
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-
-//mpJWT 1.1
-import org.eclipse.microprofile.auth.LoginConfig;
-
-//mpMetrics 2.0
-import org.eclipse.microprofile.metrics.annotation.Counted;
-/* Commenting out until https://github.com/OpenLiberty/open-liberty/issues/22592 is addressed
-import org.eclipse.microprofile.metrics.annotation.Gauge;
-import org.eclipse.microprofile.metrics.MetricUnits;
-*/
-
-//mpOpenTracing 1.3
-import org.eclipse.microprofile.opentracing.Traced;
-
-//mpRestClient 1.3
-import org.eclipse.microprofile.rest.client.inject.RestClient;
-
-//Servlet 4.0
-import javax.jms.Queue;
-import javax.jms.QueueConnectionFactory;
-import javax.servlet.http.HttpServletRequest;
-
-//JAX-RS 2.1 (JSR 339)
-import javax.ws.rs.core.Application;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.ApplicationPath;
-import javax.ws.rs.BadRequestException; //400 error
-import javax.ws.rs.Consumes;
-import javax.ws.rs.DELETE;
-import javax.ws.rs.GET;
-import javax.ws.rs.NotFoundException;   //404 error
-import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
-import javax.ws.rs.PathParam;
-import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
-import javax.ws.rs.Path;
-import javax.ws.rs.WebApplicationException;
-
-@ApplicationPath("/")
-@Path("/")
+//@ApplicationPath("/")
+@Path("/account")
 @LoginConfig(authMethod = "MP-JWT", realmName = "jwt-jaspi")
-@RequestScoped //enable interceptors (note you need a WEB-INF/beans.xml in your war)
+//@RequestScoped //enable interceptors (note you need a WEB-INF/beans.xml in your war)
 /** This microservice takes care of non-stock related attributes of a customer's account.  This includes
  *  commissions, account balance, sentiment, free trades, and loyalty level determination.  This version
- *  persists data to an IBM Cloudant non-SQL datastore.
+ *  persists data to a CouchDB-derived non-SQL datastore.
  */
-public class AccountService extends Application {
+@ApplicationScoped
+public class AccountService {
 	private static Logger logger = Logger.getLogger(AccountService.class.getName());
 
 	private static final double DONT_RECALCULATE = -1.0;
@@ -111,56 +77,66 @@ public class AccountService extends Application {
 	private static final String UNKNOWN  = "unknown";
 	private static final String DOLLARS  = "USD";
 
-	private static boolean initialized = false;
-	private static boolean staticInitialized = false;
+	private boolean delayUpdate = false;
 
-	@Resource(lookup="cloudant/AccountDB") Database accountDB;  //defined in the server.xml
-
-	// For some reason, for these injections to work, they must be declared static and be located in this class
-	// not AccountUtilities. If you remove the static keyword the injection fails.
-	@Resource(lookup = "jms/Portfolio/NotificationQueue")
-	private static Queue queue;
-	@Resource(lookup = "jms/Portfolio/NotificationQueueConnectionFactory")
-	private static QueueConnectionFactory queueCF;
+	Database accountDB;
+	CloudantClient cloudantClient;
 
 	private int basic=0, bronze=0, silver=0, gold=0, platinum=0, unknown=0; //loyalty level counts
 
-	private AccountUtilities utilities = new AccountUtilities(queueCF, queue);
+	@Inject
+	private AccountUtilities utilities;
 
-	private @Inject @RestClient ODMClient odmClient;
-	private @Inject @RestClient WatsonClient watsonClient;
+	@Inject JsonWebToken jwt;
 
-	private @Inject @ConfigProperty(name = "ODM_ID", defaultValue = "odmAdmin") String odmId;
-	private @Inject @ConfigProperty(name = "ODM_PWD", defaultValue = "odmAdmin") String odmPwd;
-	private @Inject @ConfigProperty(name = "WATSON_ID", defaultValue = "apikey") String watsonId;
-	private @Inject @ConfigProperty(name = "WATSON_PWD") String watsonPwd; //if using an API Key, it goes here
+	private @RestClient ODMClient odmClient;
+	private @RestClient WatsonClient watsonClient;
 
-	// Override ODM Client URL if secret is configured to provide URL
-	static {
-		String mpUrlPropName = ODMClient.class.getName() + "/mp-rest/url";
-		String urlFromEnv = System.getenv("ODM_URL");
-		if ((urlFromEnv != null) && !urlFromEnv.isEmpty()) {
-			logger.info("Using ODM URL from config map: " + urlFromEnv);
-			System.setProperty(mpUrlPropName, urlFromEnv);
-		} else {
-			logger.info("ODM URL not found from env var from config map, so defaulting to value in jvm.options: " + System.getProperty(mpUrlPropName));
-		}
+	 @ConfigProperty(name = "odm.id", defaultValue = "odmAdmin") String odmId;
+	 @ConfigProperty(name = "odm.pwd", defaultValue = "odmAdmin") String odmPwd;
+	 @ConfigProperty(name = "watson.id", defaultValue = "apikey") String watsonId;
+	 @ConfigProperty(name = "watson.pwd") String watsonPwd; //if using an API Key, it goes here
 
-		mpUrlPropName = WatsonClient.class.getName() + "/mp-rest/url";
-		urlFromEnv = System.getenv("WATSON_URL");
-		if ((urlFromEnv != null) && !urlFromEnv.isEmpty()) {
-			logger.info("Using Watson URL from config map: " + urlFromEnv);
-			System.setProperty(mpUrlPropName, urlFromEnv);
-		} else {
-			logger.info("Watson URL not found from env var from config map, so defaulting to value in jvm.options: " + System.getProperty(mpUrlPropName));
+	 @ConfigProperty(name="cloudant.url") String cloudantUrl;
+	 @ConfigProperty(name = "cloudant.id") String cloudantId;
+	 @ConfigProperty(name = "cloudant.password") String cloudantPassword;
+	 @ConfigProperty(name = "cloudant.db") String cloudantDb;
+
+
+	// Injection/initialization takes place after the class is instantiated, so we create the connection to CouchDB/Cloudant
+	// afterward the no-arg constructor is called.
+	//	https://stackoverflow.com/questions/3406555/why-use-postconstruct#3406631
+	@PostConstruct
+	public void postConstruct() throws MalformedURLException {
+		logger.fine("Constructing Cloudant/Couch Client");
+		if(this.cloudantClient == null){
+			synchronized (this) {
+				cloudantClient = ClientBuilder.url(new URL(cloudantUrl))
+						.username(cloudantId)
+						.password(cloudantPassword)
+						.build();
+				accountDB = cloudantClient.database(cloudantDb, true);
+
+				if (watsonClient != null) {
+					logger.info("Watson initialization completed successfully!");
+				} else {
+					logger.warning("WATSON config properties are unset");
+				}
+
+				if (odmClient != null) {
+					logger.info("ODM initialization complete");
+				} else {
+					logger.warning("ODM config properties are unset");
+				}
+			}
 		}
 	}
 
 	@GET
 	@Path("/")
 	@Produces(MediaType.APPLICATION_JSON)
-//	@RolesAllowed({"StockTrader", "StockViewer"}) //Couldn't get this to work; had to do it through the web.xml instead :(
-	public Account[] getAccounts() throws IOException {
+	@RolesAllowed({"StockTrader", "StockViewer"}) //Couldn't get this to work; had to do it through the web.xml instead :(
+	public List<Account> getAccounts() throws IOException {
 		List<Account> accountList = null;
 		int size = 0;
 
@@ -176,9 +152,6 @@ public class AccountService extends Application {
 			logger.warning("Failure getting accounts");
 			logException(t);
 		}
-
-		Account[] accountArray = new Account[size];
-		if (accountList != null) accountArray = accountList.toArray(accountArray);
 
 		logger.fine("Returning "+size+" accounts");
 
@@ -203,14 +176,14 @@ public class AccountService extends Application {
 			logException(t);
 		}
 */
-		return accountArray;
+		return accountList;
 	}
 
 	@POST
 	@Path("/{owner}")
 	@Produces(MediaType.APPLICATION_JSON)
-	@Counted(name="accounts", displayName="Stock Trader accounts", description="Number of accounts created in the Stock Trader application")
-	//	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
+//	@Counted(name="accounts", description="Number of accounts created in the Stock Trader application")
+	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
 	public Account createAccount(@PathParam("owner") String owner) {
 		Account account = null;
 		if (owner != null) try {
@@ -251,29 +224,29 @@ public class AccountService extends Application {
 	@GET
 	@Path("/{id}")
 	@Produces(MediaType.APPLICATION_JSON)
-//	@RolesAllowed({"StockTrader", "StockViewer"}) //Couldn't get this to work; had to do it through the web.xml instead :(
-	public Account getAccount(@PathParam("id") String id, @QueryParam("total") double total, @Context HttpServletRequest request) throws IOException {
+	@RolesAllowed({"StockTrader", "StockViewer"}) //Couldn't get this to work; had to do it through the web.xml instead :(
+	public Account getAccount(@PathParam("id") String id, @QueryParam("total") double total) throws IOException {
 		Account account = null;
 		logger.fine("Entering getAccount");
 		try {
 			account = accountDB.find(Account.class, id);
 			if (account != null) {
 				if (total == DONT_RECALCULATE) {
-					logger.fine("Skipping recalculation of loyalty level and next commision as requested");
+					logger.fine("Skipping recalculation of loyalty level and next commission as requested");
 				} else {
 					String owner = account.getOwner();
 					String oldLoyalty = account.getLoyalty();
 	
 					logger.fine("Invoking external business rule for "+id);
 					//this can be a call to either IBM ODM, or my simple Lambda function alternative, depending on the URL configured in the CR yaml
-					String loyalty = utilities.invokeODM(odmClient, odmId, odmPwd, owner, total, oldLoyalty, request);
+					String loyalty = utilities.invokeODM(odmClient, odmId, odmPwd, owner, total, oldLoyalty, jwt.getName());
 					if ((loyalty!=null) && !loyalty.equalsIgnoreCase(oldLoyalty)) { //don't rev the Cloudant doc if nothing's changed
 						account.setLoyalty(loyalty);
 	
 						int free = account.getFree();
 						account.setNextCommission(free>0 ? 0.0 : utilities.getCommission(loyalty));
 	
-						if (!delayUpdate(request)) { //if called from updateAccount, let it drive the update to Cloudant
+						if (!delayUpdate) { //if called from updateAccount, let it drive the update to Cloudant
 							logger.fine("Calling accountDB.update() for "+id+" in getAccount due to new loyalty level");
 							accountDB.update(account);
 						}
@@ -298,14 +271,14 @@ public class AccountService extends Application {
 	@PUT
 	@Path("/{id}")
 	@Produces(MediaType.APPLICATION_JSON)
-//	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
-	public Account updateAccount(@PathParam("id") String id, @QueryParam("total") double total, @Context HttpServletRequest request) throws IOException {
+	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
+	public Account updateAccount(@PathParam("id") String id, @QueryParam("total") double total) throws IOException {
 		logger.fine("Entering updateAccount");
-		request.setAttribute(DELAY, true); //used by delayUpdate()
+		this.delayUpdate = true;
 
 		Account account = null;
 		try {
-			account = getAccount(id, total, request); //this computes new loyalty, etc.
+			account = getAccount(id, total); //this computes new loyalty, etc.
 
 			if (account!=null) {
 				String owner = account.getOwner();
@@ -348,7 +321,7 @@ public class AccountService extends Application {
 	@DELETE
 	@Path("/{id}")
 	@Produces(MediaType.APPLICATION_JSON)
-//	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
+	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
 	public Account deleteAccount(@PathParam("id") String id) {
 		Account account = null;
 		logger.fine("Entering deleteAccount for "+id);
@@ -377,15 +350,13 @@ public class AccountService extends Application {
 	@Path("/{id}/feedback")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.APPLICATION_JSON)
-//	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
-	public Feedback submitFeedback(@PathParam("id") String id, WatsonInput input, @Context HttpServletRequest request) throws IOException {
+	@RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
+	public Feedback submitFeedback(@PathParam("id") String id, WatsonInput input) throws IOException {
 		String sentiment = "Unknown";
 		Feedback feedback = null;
 		try {
-			if (!initialized) initialize();
-
 			logger.fine("Getting account for "+id+" in submitFeedback");
-			Account account = getAccount(id, DONT_RECALCULATE, request);
+			Account account = getAccount(id, DONT_RECALCULATE);
 
 			if (account != null) {
 				int freeTrades = account.getFree();
@@ -406,35 +377,6 @@ public class AccountService extends Application {
 		}
 
 		return feedback;
-	}
-
-	@Traced
-	private void initialize() {
-		if (watsonId != null) {
-			logger.info("Watson initialization completed successfully!");
-		} else {
-			logger.warning("WATSON_ID config property is null");
-		}
-
-		if (odmId != null) {
-			logger.info("Initialization complete");
-		} else {
-			logger.warning("ODM_ID config property is null");
-		}
-		initialized = true;
-	}
-
-	//This so that when getAccount is called from updateAccount, we don't drive two updates to Cloudant, which causes a 409
-	private boolean delayUpdate(HttpServletRequest request) {
-		boolean delay = false;
-		Object attribute = request.getAttribute(DELAY);
-		if (attribute!=null) {
-			if (attribute instanceof Boolean) {
-				Boolean wrapper = (Boolean) attribute;
-				delay = wrapper.booleanValue();
-			}
-		}
-		return delay;
 	}
 
 /* Commenting out until https://github.com/OpenLiberty/open-liberty/issues/22592 is addressed

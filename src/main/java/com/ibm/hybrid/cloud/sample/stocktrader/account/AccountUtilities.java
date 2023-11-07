@@ -19,48 +19,22 @@ package com.ibm.hybrid.cloud.sample.stocktrader.account;
 
 import com.ibm.hybrid.cloud.sample.stocktrader.account.client.ODMClient;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.client.WatsonClient;
-import com.ibm.hybrid.cloud.sample.stocktrader.account.json.Feedback;
-import com.ibm.hybrid.cloud.sample.stocktrader.account.json.LoyaltyChange;
-import com.ibm.hybrid.cloud.sample.stocktrader.account.json.ODMLoyaltyRule;
-import com.ibm.hybrid.cloud.sample.stocktrader.account.json.WatsonInput;
-import com.ibm.hybrid.cloud.sample.stocktrader.account.json.WatsonOutput;
+import com.ibm.hybrid.cloud.sample.stocktrader.account.json.*;
+import io.opentelemetry.instrumentation.annotations.WithSpan;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.jms.*;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.text.SimpleDateFormat;
 import java.util.Base64;
-import java.util.Date;
-import java.util.UUID;
-
-//Logging (JSR 47)
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-//JDBC 4.0 (JSR 221)
-import java.sql.SQLException;
-
-//mpOpenTracing 1.3
-import org.eclipse.microprofile.opentracing.Traced;
-
-//JMS 2.0
-import javax.annotation.Resource;
-import javax.jms.DeliveryMode;
-import javax.jms.JMSException;
-import javax.jms.Queue;
-import javax.jms.QueueConnection;
-import javax.jms.QueueConnectionFactory;
-import javax.jms.QueueSender;
-import javax.jms.QueueSession;
-import javax.jms.Session;
-import javax.jms.TextMessage;
-
-//JSON-P 1.1 (JSR 353).  This replaces my old usage of IBM's JSON4J (com.ibm.json.java.JSONObject)
-import javax.json.JsonObject;
-
-//Servlet 4.0
-import javax.servlet.http.HttpServletRequest;
-
 /** Utility class that wraps communication with various types of services in the cloud */
+@ApplicationScoped
 public class AccountUtilities {
 	private static Logger logger = Logger.getLogger(AccountUtilities.class.getName());
 
@@ -73,23 +47,19 @@ public class AccountUtilities {
 	private static final String GOLD     = "Gold";
 	private static final String PLATINUM = "Platinum";
 
-	private Queue queue;
-	private QueueConnectionFactory queueCF;
+	@Inject private ConnectionFactory jmsConnectionFactory;
+
+	@ConfigProperty(name = "mq.queue", defaultValue = "LoyaltyLevelChange") private String queueName;
+
+	@ConfigProperty(name="messaging.enabled") private boolean useJMS;
 
 	private static SimpleDateFormat timestampFormatter = null;
 
-	private static final boolean useJMS = Boolean.parseBoolean(System.getenv("MESSAGING_ENABLED"));
-	private static final String mqId = System.getenv("MQ_ID");
-	private static final String mqPwd = System.getenv("MQ_PASSWORD");
 
-	/** Invoke a business rule to determine the loyalty level corresponding to an account balance */
-	public AccountUtilities(QueueConnectionFactory queueCF, Queue queue){
-		this.queueCF = queueCF;
-		this.queue = queue;
-	}
 
-	@Traced
-	String invokeODM(ODMClient odmClient, String odmId, String odmPwd, String owner, double overallTotal, String oldLoyalty, HttpServletRequest request) {
+
+	@WithSpan
+	String invokeODM(ODMClient odmClient, String odmId, String odmPwd, String owner, double overallTotal, String oldLoyalty, String user) {
 		String loyalty = null;
 		ODMLoyaltyRule input = new ODMLoyaltyRule(overallTotal);
 		try {
@@ -99,7 +69,8 @@ public class AccountUtilities {
 			try {
 				//call the LoyaltyLevel business rule to get the current loyalty level of this portfolio
 				logger.fine("Calling loyalty-level ODM business rule for "+owner);
-				ODMLoyaltyRule result = odmClient.getLoyaltyLevel(basicAuth, input);
+				logger.fine(input.toString());
+				ODMLoyaltyRule result = odmClient.getLoyaltyLevel(/*basicAuth,*/ input);
 
 				loyalty = result.determineLoyalty();
 				logger.fine("New loyalty level for "+owner+" is "+loyalty);
@@ -112,12 +83,12 @@ public class AccountUtilities {
 			if ((oldLoyalty==null) || (loyalty==null)) return loyalty;
 			if (!oldLoyalty.equalsIgnoreCase(loyalty)) try {
 				logger.info("Change in loyalty level detected for owner: "+owner);
+				logger.fine("Should we put a JMS message? " + useJMS);
 
 				if (useJMS) {
 					LoyaltyChange message = new LoyaltyChange(owner, oldLoyalty, loyalty);
-		
-					String user = request.getRemoteUser(); //logged-in user
-					if (user != null) message.setId(user);
+
+					if (user != null) message.setId(user); // User in jwt
 		
 					logger.fine(message.toString());
 		
@@ -141,7 +112,7 @@ public class AccountUtilities {
 	}
 
 	/** Use the Watson Tone Analyzer to determine the user's sentiment */
-	@Traced
+	@WithSpan
 	Feedback invokeWatson(WatsonClient watsonClient, String watsonId, String watsonPwd, WatsonInput input) {
 		String sentiment = "Unknown";
 		try {
@@ -175,28 +146,28 @@ public class AccountUtilities {
 	}
 
 	/** Send a JSON message to our notification queue. */
-	@Traced
+	@WithSpan
 	void invokeJMS(Object json) throws JMSException {
-		if (queueCF != null) {
+//		JMSContext context = jmsConnectionFactory.createContext(JMSContext.AUTO_ACKNOWLEDGE);
+		if (jmsConnectionFactory != null) {
 			logger.fine("Preparing to send a JMS message");
+			// try-with-resources will close the context automatically
+			try (JMSContext jmsContext = jmsConnectionFactory.createContext(JMSContext.AUTO_ACKNOWLEDGE)){
+				Queue queue = jmsContext.createQueue(queueName);
 
-			QueueConnection connection = queueCF.createQueueConnection(mqId, mqPwd);
-			QueueSession session = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
+				String contents = json.toString();
+				TextMessage message = jmsContext.createTextMessage(contents);
 
-			String contents = json.toString();
-			TextMessage message = session.createTextMessage(contents);
+				logger.info("Sending " + contents + " to " + queue.getQueueName());
 
-			logger.info("Sending "+contents+" to "+queue.getQueueName());
+				//"mqclient" group needs "put" authority on the queue for next two lines to work
 
-			//"mqclient" group needs "put" authority on the queue for next two lines to work
-			QueueSender sender = session.createSender(queue);
-			sender.setDeliveryMode(DeliveryMode.PERSISTENT);
-			sender.send(message);
-
-			sender.close();
-			session.close();
-			connection.close();
-
+				jmsContext.createProducer().setDeliveryMode(DeliveryMode.PERSISTENT).send(queue, message);
+			} catch (JMSRuntimeException jmsre) {
+				logger.warning("Error creating JMS Context");
+				logger.warning(jmsre.toString());
+				jmsre.printStackTrace();
+			}
 			logger.info("JMS Message sent successfully!"); //exception would have occurred otherwise
 		} else {
 			logger.warning("Unable to inject JMS QueueConnectionFactory - check your MQ configuration.  No JMS message will be sent.");

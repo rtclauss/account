@@ -55,46 +55,23 @@ it can be running on "bare metal" in a traditional on-premises environment.  End
 specified in the *Kubernetes* secret and made available as environment variables to the server.xml of WebSphere
 Liberty.  See the *manifests/portfolio-values.yaml* for details.
 
-### Prerequisites for ICP Deployment
- This project requires two secrets: `jwt` and `db2`.  You can get the DB2 values from inspecting your DB2 secrets.
-  ```bash
-  kubectl create secret generic jwt -n stock-trader --from-literal=audience=stock-trader --from-literal=issuer=http://stock-trader.ibm.com
-  
-  kubectl create secret generic db2 --from-literal=id=<DB2_USERNAME> --from-literal=pwd=<DB2_PASSWORD> --from-literal=host=<DB2_SVC_NAME> --from-literal=port=50000 --from-literal=db=<TRADER_DB_NAME>
-  
-  # Example db2:
-  kubectl create secret generic db2 --from-literal=id=db2inst1 --from-literal=pwd=db2inst1 --from-literal=host=trader-ibm-db2oltp-dev --from-literal=port=50000 --from-literal=db=trader
-  ```
-  
-  You'll also need to enable login to the IBM Cloud Private internal Docker registry by following [these steps]
-  (https://www.ibm.com/support/knowledgecenter/en/SSBS6K_2.1.0/manage_images/configuring_docker_cli.html).  Don't 
-  forget to restart Docker after adding your cert.  On macOS you can restart Docker by running:
-  ```bash
-  osascript -e 'quit app "Docker"'
-  open -a Docker
-  ```
- 
- ### Build and Deploy to ICP
-To build `portfolio` clone this repo and run:
+### Build 
+#### Build and run Quarkus locally 
+
+To build `account` clone this repo and run:
 ```bash
-mvn package
-docker build -t portfolio:latest -t <ICP_CLUSTER>.icp:8500/stock-trader/portfolio:latest .
-docker tag portfolio:latest <ICP_CLUSTER>.icp:8500/stock-trader/portfolio:latest
-docker push <ICP_CLUSTER>.icp:8500/stock-trader/portfolio:latest
+./mvnw quarkus:dev
 ```
 
-Use WebSphere Liberty helm chart to deploy Portfolio microservice to ICP:
+#### Build container
 ```bash
-helm repo add ibm-charts https://raw.githubusercontent.com/IBM/charts/master/repo/stable/
-helm install ibm-charts/ibm-websphere-liberty -f <VALUES_YAML> -n <RELEASE_NAME> --tls
+./mvnw package
+docker build -f src/main/docker/Dockerfile-old-liberty.jvm -t <your repository>/account .
 ```
+
+#### Run container
 
 In practice this means you'll run something like:
 ```bash
-docker build -t portfolio:latest -t mycluster.icp:8500/stock-trader/portfolio:latest .
-docker tag portfolio:latest mycluster.icp:8500/stock-trader/portfolio:latest
-docker push mycluster.icp:8500/stock-trader/portfolio:latest
-
-helm repo add ibm-charts https://raw.githubusercontent.com/IBM/charts/master/repo/stable/
-helm install ibm-charts/ibm-websphere-liberty -f manifests/portfolio-values.yaml -n portfolio --namespace stock-trader --tls
+docker run -i --rm -p 9080:9080 <your repository>/account 
 ```
