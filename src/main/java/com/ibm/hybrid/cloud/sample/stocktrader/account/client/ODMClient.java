@@ -24,7 +24,7 @@ import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 @Path("/")
 @RegisterRestClient(configKey = "odm-client-config")
 /** mpRestClient "remote" interface for the ODM business rule for determining loyalty level */
-public interface ODMClient extends AutoCloseable {
+public interface ODMClient {
 	@POST
     @Consumes("application/json")
 	@Produces("application/json")
