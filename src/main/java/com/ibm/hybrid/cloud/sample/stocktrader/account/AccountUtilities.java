@@ -165,7 +165,7 @@ public class AccountUtilities {
 				jmsContext.createProducer().setDeliveryMode(DeliveryMode.PERSISTENT).send(queue, message);
 			} catch (JMSRuntimeException jmsre) {
 				logger.warning("Error creating JMS Context");
-				logger.warning(jmsre.toString());
+				logException(jmsre);
 				jmsre.printStackTrace();
 			}
 			logger.info("JMS Message sent successfully!"); //exception would have occurred otherwise
