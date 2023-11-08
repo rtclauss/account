@@ -53,11 +53,6 @@ public class AccountUtilities {
 
 	@ConfigProperty(name="messaging.enabled") private boolean useJMS;
 
-	private static SimpleDateFormat timestampFormatter = null;
-
-
-
-
 	@WithSpan
 	String invokeODM(ODMClient odmClient, String odmId, String odmPwd, String owner, double overallTotal, String oldLoyalty, String user) {
 		String loyalty = null;
