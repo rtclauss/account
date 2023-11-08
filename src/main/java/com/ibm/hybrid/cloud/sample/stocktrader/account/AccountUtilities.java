@@ -36,7 +36,7 @@ import java.util.logging.Logger;
 /** Utility class that wraps communication with various types of services in the cloud */
 @ApplicationScoped
 public class AccountUtilities {
-	private static Logger logger = Logger.getLogger(AccountUtilities.class.getName());
+	private static final Logger logger = Logger.getLogger(AccountUtilities.class.getName());
 
 	private boolean odmBroken   = false; //used to only report failures of calls to ODM once, rather than every time
 

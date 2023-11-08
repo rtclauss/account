@@ -61,7 +61,7 @@ import java.util.logging.Logger;
  */
 @ApplicationScoped
 public class AccountService {
-	private static Logger logger = Logger.getLogger(AccountService.class.getName());
+	private static final Logger logger = Logger.getLogger(AccountService.class.getName());
 
 	private static final double DONT_RECALCULATE = -1.0;
 	private static final int    CONFLICT         = 409;         //odd that JAX-RS has no ConflictException
