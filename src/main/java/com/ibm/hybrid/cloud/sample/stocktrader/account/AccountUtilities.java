@@ -153,7 +153,7 @@ public class AccountUtilities {
     void invokeJMS(Object json) throws JMSException {
 //		JMSContext context = jmsConnectionFactory.createContext(JMSContext.AUTO_ACKNOWLEDGE);
         if (jmsConnectionFactory != null) {
-            logger.fine("Preparing to send a JMS message");
+            logger.fine("Preparing to send a JMS message.");
             // try-with-resources will close the context automatically
             try (JMSContext jmsContext = jmsConnectionFactory.createContext(JMSContext.AUTO_ACKNOWLEDGE)) {
                 Queue queue = jmsContext.createQueue(queueName);
@@ -173,7 +173,7 @@ public class AccountUtilities {
             }
             logger.info("JMS Message sent successfully!"); //exception would have occurred otherwise
         } else {
-            logger.warning("Unable to inject JMS QueueConnectionFactory - check your MQ configuration.  No JMS message will be sent.");
+            logger.warning("Unable to inject JMS ConnectionFactory - check your MQ Broker configuration. No JMS message will be sent.");
         }
     }
 
