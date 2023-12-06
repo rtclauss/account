@@ -36,7 +36,7 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import org.eclipse.microprofile.auth.LoginConfig;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-// TODO Quarkus 3.5 does not support OpenTelemetry Metics yet
+// TODO Quarkus 3.6.x does not support OpenTelemetry Metics yet
 //import org.eclipse.microprofile.metrics.annotation.Counted;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
