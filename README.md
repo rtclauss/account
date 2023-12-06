@@ -14,59 +14,54 @@
    limitations under the License.
 -->
 
-This service manages a *stock portfolio*.  The data is backed by two **DB2** tables, communicated with
-via *JDBC*.  The following operations are available:
+This service manages user *accounts*.  The data is backed by a CouchDB-complient document database (Cloudant, CouchDB).  The following operations are available:
 
-`GET /` - gets summary data for all portfolios.
+`GET /` - gets all accounts.
 
-`POST /{owner}` - creates a new portfolio for the specified owner.
+`POST /{owner}` - creates a new account for the specified owner.
 
-`GET /{owner}` - gets details for the specified owner.
+`GET /{owner}` - gets details for the specified account.
 
-`PUT /{owner}` - updates the portfolio for the specified owner (by adding a stock).
+`PUT /{owner}?total={total}` - updates the account total for the specified owner (by adding a stock).
 
-`DELETE /{owner}` - removes the portfolio for the specified owner.
-
-`GET /{owner}/returns` - gets the return on investment for this portfolio.
+`DELETE /{owner}` - removes the account for the specified owner.
 
 `POST /{owner}/feedback` - submits feedback (to the Watson Tone Analyzer)
 
-All operations return *JSON*.  A *portfolio* object contains fields named *owner*, *total*, *loyalty*, *balance*,
-*commissions*, *free*, *sentiment*, and *nextCommission*, plus an array of *stocks*.  A *stock* object contains
-fields named *symbol*, *shares*, *commission*, *price*, *total*, and *date*.  The only operation that takes any
-query params is the `PUT` operation, which expects params named *symbol* and *shares*.  Also, the `feedback`
+All operations return *JSON*.  An *account* object contains fields named *owner*, *total*, *loyalty*, *balance*,
+*commissions*, *free*, *sentiment*, and *nextCommission*. The only operation that takes any
+query params is the `PUT` operation, which expects a param named *total*.  Also, the `feedback`
 operation takes a JSON object in the http body, with a single field named *text*.
 
-For example, doing a `PUT http://localhost:9080/portfolio/John?symbol=IBM&shares=123` (against a freshly
-created portfolio for *John*) would return *JSON* like `{"owner": "John", "total": 19120.35, "loyalty": "Bronze",
-"balance": 40.01, "commissions": 9.99, "free": 0, "sentiment": "Unknown", "nextCommission": 8.99, "stocks":
-[{"symbol": "IBM", "shares": 123, "commission": 9.99, "price": 155.45, "total": 19120.35, "date": "2017-06-26"}]}`.
+This microservice calls out to three other external services. First, there is a business rule that determines the Loyalty Level
+of this account. This is called via REST. `POST`ing feedback also makes a REST call to Watson to determine the sentiment and, potentially,
+provide free trades depending on the sentiment. Finally, there is a Jakarta Messaging message that is sent when the loyalty level changes.  All three of these
+services are optional.
 
-The above REST call would also add a row to the Stocks table via a SQL statement like `INSERT INTO Stock
-(owner, symbol, shares, price, total, dateQuoted) VALUES ('John', 'IBM', 123, 155.45, 19120.35, '2017-06-26')`,
-and would update the corresponding row in the Portfolio table via a SQL statement like
-`UPDATE Portfolio SET total = 19120.35, loyalty = 'Bronze' WHERE owner = 'John'`.
-
-The code should work with any *JDBC* provider.  It has been tested with **DB2** and with **Derby**.  Changing
-providers simply means updating the *Dockerfile* to copy the *JDBC* jar file into the Docker image, and updating
-the *server.xml* to reference it and specify any database-specific settings.  No *Java* code changes are necessary
-when changing *JDBC* providers.  The database can either be another pod in the same *Kubernetes* environment, or
+The code should work with any *document-based NoSQL* provider that supports the CouchDB API.  It has been tested with **CouchDB** and with **Cloudant**.
+The database can either be another pod in the same *Kubernetes* environment, or
 it can be running on "bare metal" in a traditional on-premises environment.  Endpoint and credential info is
-specified in the *Kubernetes* secret and made available as environment variables to the server.xml of WebSphere
-Liberty.  See the *manifests/portfolio-values.yaml* for details.
+specified in the *Kubernetes* secret and made available as environment variables to the application.properties of Quarkus.  See the *manifests/portfolio-values.yaml* for details.
+
+The Jakarta Messaging functionality supports any AMQP 1.0 messaging provider. IBM MQ 9.2.x+ (with [AMQP 1.0 support enabled](https://developer.ibm.com/tutorials/mq-setting-up-amqp-with-mq)) and Apache ActiveMQ have both been tested.
 
 ### Build 
 #### Build and run Quarkus locally 
 
-To build `account` clone this repo and run:
+To build `account` and run in dev mode, locally, clone this repo and run:
 ```bash
 ./mvnw quarkus:dev
 ```
 
-#### Build container
+#### Build container and push to container registry
 ```bash
-./mvnw package
-docker build -f src/main/docker/Dockerfile-old-liberty.jvm -t <your repository>/account .
+./mvnw clean install -Dquarkus.container-image.build=true \                                                                                                              ✔  base   system   14:26:36  
+    -Dquarkus.container-image.tag=<your tag> \
+    -Dquarkus.container-image.group=ibmstocktrader \
+    -Dquarkus.container-image.registry=<YOUR REGISTRY HOST> 
+
+docker push <YOUR REGISTRY HOST AND REPOSITORY>
+
 ```
 
 #### Run container
