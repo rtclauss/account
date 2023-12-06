@@ -21,7 +21,7 @@
 #
 # Then, build the image with:
 #
-# docker build -f src/main/docker/Dockerfile-old-liberty.legacy-jar -t quarkus/code-with-quarkus-legacy-jar .
+# docker build -f src/main/docker/Dockerfile.legacy-jar -t quarkus/code-with-quarkus-legacy-jar .
 #
 # Then run the container using:
 #
@@ -91,7 +91,7 @@
 #   accessed directly. (example: "foo.example.com,bar.example.com")
 #
 ###
-FROM registry.access.redhat.com/ubi8/openjdk-17:1.17
+FROM registry.access.redhat.com/ubi9/openjdk-21:1.17-2
 
 ENV LANGUAGE='en_US:en'
 
