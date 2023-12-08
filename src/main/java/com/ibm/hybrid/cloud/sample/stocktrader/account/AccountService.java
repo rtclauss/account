@@ -86,10 +86,10 @@ public class AccountService {
     @ConfigProperty(name = "watson.id", defaultValue = "apikey") String watsonId;
     @ConfigProperty(name = "watson.pwd") String watsonPwd; //if using an API Key, it goes here
 
-//    @Inject
-//    public AccountService(AccountRepository accountDbRepository){
-//        this.accountDbRepository=accountDbRepository;
-//    }
+    @Inject
+    public AccountService(AccountRepository accountDbRepository){
+        this.accountDbRepository=accountDbRepository;
+    }
 
 
     // Injection/initialization takes place after the class is instantiated, so we create the connection to CouchDB/Cloudant
