@@ -17,28 +17,55 @@
 package com.ibm.hybrid.cloud.sample.stocktrader.account.json;
 
 
+import jakarta.nosql.Column;
+import jakarta.nosql.Entity;
+import jakarta.nosql.Id;
+
+import java.util.UUID;
+
 /** JSON-B POJO class representing an Account JSON object */
+@Entity
 public class Account {
-    private String _id;
-    private String _rev;
-    private String owner;
-    private String loyalty;
-    private double balance;
-    private double commissions;
-    private int free;
-    private String sentiment;
-    private double nextCommission;
-    private String operation;
+    @Id() private String id;
+    @Column private String owner;
+    @Column private String loyalty;
+    @Column private double balance;
+    @Column private double commissions;
+    @Column private int free;
+    @Column private String sentiment;
+    @Column private double nextCommission;
+    @Column private String operation;
 
     public Account() { //default constructor
+        setId(UUID.randomUUID().toString());
+        setOwner("Someone Unknown");
+        setLoyalty("Basic");
+        setBalance(50.0);
+        setCommissions(0.0);
+        setFree(0);
+        setSentiment("Unknown");
+        setNextCommission(9.99);
     }
 
     public Account(String initialOwner) { //primary key constructor
+        this();
         setOwner(initialOwner);
     }
 
     public Account(String initialOwner, String initialLoyalty, double initialBalance, double initialCommissions,
                      int initialFree, String initialSentiment, double initialNextCommission) {
+        setId(UUID.randomUUID().toString());
+        setOwner(initialOwner);
+        setLoyalty(initialLoyalty);
+        setBalance(initialBalance);
+        setCommissions(initialCommissions);
+        setFree(initialFree);
+        setSentiment(initialSentiment);
+        setNextCommission(initialNextCommission);
+    }
+    public Account(String id, String initialOwner, String initialLoyalty, double initialBalance, double initialCommissions,
+                   int initialFree, String initialSentiment, double initialNextCommission) {
+        setId(id);
         setOwner(initialOwner);
         setLoyalty(initialLoyalty);
         setBalance(initialBalance);
@@ -48,20 +75,12 @@ public class Account {
         setNextCommission(initialNextCommission);
     }
 
-    public String get_id() {
-        return _id;
+    public String getId() {
+        return id;
     }
 
-    public void set_id(String new_id) {
-        _id = new_id;
-    }
-
-    public String get_rev() {
-        return _rev;
-    }
-
-    public void set_rev(String new_rev) {
-        _rev = new_rev;
+    public void setId(String newId) {
+        id = newId;
     }
 
     public String getOwner() {
@@ -135,8 +154,8 @@ public class Account {
    }
 
     public String toString() {
-        return "{\"_id\": \""+_id+"\", \"_rev\": \""+_rev+"\", \"owner\": \""+owner+"\", \"loyalty\": \""+loyalty
-               +"\", \"balance\": "+balance+", \"commissions\": "+commissions+", \"free\": "+free
-               +", \"nextCommission\": "+nextCommission+", \"sentiment\": \""+sentiment+"\", \"operation\": \""+operation+"\"}";
+        return "{\"_id\": \""+ id +"\", \"owner\": \""+owner+"\", \"loyalty\": \""+loyalty
+                +"\", \"balance\": "+balance+", \"commissions\": "+commissions+", \"free\": "+free
+                +", \"nextCommission\": "+nextCommission+", \"sentiment\": \""+sentiment+"\", \"operation\": \""+operation+"\"}";
     }
 }
