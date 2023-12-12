@@ -19,218 +19,192 @@ package com.ibm.hybrid.cloud.sample.stocktrader.account;
 
 import com.ibm.hybrid.cloud.sample.stocktrader.account.client.ODMClient;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.client.WatsonClient;
-import com.ibm.hybrid.cloud.sample.stocktrader.account.json.Feedback;
-import com.ibm.hybrid.cloud.sample.stocktrader.account.json.LoyaltyChange;
-import com.ibm.hybrid.cloud.sample.stocktrader.account.json.ODMLoyaltyRule;
-import com.ibm.hybrid.cloud.sample.stocktrader.account.json.WatsonInput;
-import com.ibm.hybrid.cloud.sample.stocktrader.account.json.WatsonOutput;
+import com.ibm.hybrid.cloud.sample.stocktrader.account.json.*;
+import io.opentelemetry.instrumentation.annotations.WithSpan;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.jms.*;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.text.SimpleDateFormat;
 import java.util.Base64;
-import java.util.Date;
-import java.util.UUID;
-
-//Logging (JSR 47)
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-//JDBC 4.0 (JSR 221)
-import java.sql.SQLException;
-
-//mpOpenTracing 1.3
-import org.eclipse.microprofile.opentracing.Traced;
-
-//JMS 2.0
-import javax.annotation.Resource;
-import javax.jms.DeliveryMode;
-import javax.jms.JMSException;
-import javax.jms.Queue;
-import javax.jms.QueueConnection;
-import javax.jms.QueueConnectionFactory;
-import javax.jms.QueueSender;
-import javax.jms.QueueSession;
-import javax.jms.Session;
-import javax.jms.TextMessage;
-
-//JSON-P 1.1 (JSR 353).  This replaces my old usage of IBM's JSON4J (com.ibm.json.java.JSONObject)
-import javax.json.JsonObject;
-
-//Servlet 4.0
-import javax.servlet.http.HttpServletRequest;
-
-/** Utility class that wraps communication with various types of services in the cloud */
+/**
+ * Utility class that wraps communication with various types of services in the cloud
+ */
+@ApplicationScoped
 public class AccountUtilities {
-	private static Logger logger = Logger.getLogger(AccountUtilities.class.getName());
+    private static final Logger logger = Logger.getLogger(AccountUtilities.class.getName());
 
-	private boolean odmBroken   = false; //used to only report failures of calls to ODM once, rather than every time
+    private boolean odmBroken = false; //used to only report failures of calls to ODM once, rather than every time
 
-	//Our ODM rule will return its own values for levels, generally in all caps
-	private static final String BASIC    = "Basic";
-	private static final String BRONZE   = "Bronze";
-	private static final String SILVER   = "Silver";
-	private static final String GOLD     = "Gold";
-	private static final String PLATINUM = "Platinum";
+    //Our ODM rule will return its own values for levels, generally in all caps
+    private static final String BASIC = "Basic";
+    private static final String BRONZE = "Bronze";
+    private static final String SILVER = "Silver";
+    private static final String GOLD = "Gold";
+    private static final String PLATINUM = "Platinum";
 
-	private Queue queue;
-	private QueueConnectionFactory queueCF;
+    @Inject
+    private ConnectionFactory jmsConnectionFactory;
 
-	private static SimpleDateFormat timestampFormatter = null;
+    @ConfigProperty(name = "mq.queue", defaultValue = "LoyaltyLevelChange")
+    private String queueName;
 
-	private static final boolean useJMS = Boolean.parseBoolean(System.getenv("MESSAGING_ENABLED"));
-	private static final String mqId = System.getenv("MQ_ID");
-	private static final String mqPwd = System.getenv("MQ_PASSWORD");
+    @ConfigProperty(name = "messaging.enabled")
+    private boolean useJMS;
 
-	/** Invoke a business rule to determine the loyalty level corresponding to an account balance */
-	public AccountUtilities(QueueConnectionFactory queueCF, Queue queue){
-		this.queueCF = queueCF;
-		this.queue = queue;
-	}
+    @WithSpan
+    String invokeODM(ODMClient odmClient, String odmId, String odmPwd, String owner, double overallTotal, String oldLoyalty, String user) {
+        String loyalty = null;
+        ODMLoyaltyRule input = new ODMLoyaltyRule(overallTotal);
+        try {
+            String credentials = odmId + ":" + odmPwd;
+            String basicAuth = "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes());
 
-	@Traced
-	String invokeODM(ODMClient odmClient, String odmId, String odmPwd, String owner, double overallTotal, String oldLoyalty, HttpServletRequest request) {
-		String loyalty = null;
-		ODMLoyaltyRule input = new ODMLoyaltyRule(overallTotal);
-		try {
-			String credentials = odmId+":"+odmPwd;
-			String basicAuth = "Basic "+Base64.getEncoder().encodeToString(credentials.getBytes());
+            try {
+                //call the LoyaltyLevel business rule to get the current loyalty level of this portfolio
+                logger.fine("Calling loyalty-level ODM business rule for " + owner);
+                logger.fine(input.toString());
+                ODMLoyaltyRule result = odmClient.getLoyaltyLevel(/*basicAuth,*/ input);
 
-			try {
-				//call the LoyaltyLevel business rule to get the current loyalty level of this portfolio
-				logger.fine("Calling loyalty-level ODM business rule for "+owner);
-				ODMLoyaltyRule result = odmClient.getLoyaltyLevel(basicAuth, input);
+                loyalty = result.determineLoyalty();
+                logger.fine("New loyalty level for " + owner + " is " + loyalty);
+            } catch (Throwable t) {
+                logger.warning("Error invoking ODM:" + t.getClass().getName() + ": " + t.getMessage() + ".  Loyalty level will remain unchanged.");
+                if (!odmBroken) logException(t);
+                odmBroken = true; //so logs aren't full of this stack trace on every getAccount
+            }
 
-				loyalty = result.determineLoyalty();
-				logger.fine("New loyalty level for "+owner+" is "+loyalty);
-			} catch (Throwable t) {
-				logger.warning("Error invoking ODM:" + t.getClass().getName() + ": "+t.getMessage() + ".  Loyalty level will remain unchanged.");
-				if (!odmBroken) logException(t);
-				odmBroken = true; //so logs aren't full of this stack trace on every getAccount
-			}
+            if ((oldLoyalty == null) || (loyalty == null)) return loyalty;
+            if (!oldLoyalty.equalsIgnoreCase(loyalty)) try {
+                logger.info("Change in loyalty level detected for owner: " + owner);
+                logger.fine("Should we put a JMS message? " + useJMS);
 
-			if ((oldLoyalty==null) || (loyalty==null)) return loyalty;
-			if (!oldLoyalty.equalsIgnoreCase(loyalty)) try {
-				logger.info("Change in loyalty level detected for owner: "+owner);
+                if (useJMS) {
+                    LoyaltyChange message = new LoyaltyChange(owner, oldLoyalty, loyalty);
 
-				if (useJMS) {
-					LoyaltyChange message = new LoyaltyChange(owner, oldLoyalty, loyalty);
-		
-					String user = request.getRemoteUser(); //logged-in user
-					if (user != null) message.setId(user);
-		
-					logger.fine(message.toString());
-		
-					invokeJMS(message);
-				}
-			} catch (JMSException jms) { //in case MQ is not configured, just log the exception and continue
-				logger.warning("Unable to send message to JMS provider.  Continuing without notification of change in loyalty level.");
-				logException(jms);
-				Exception linked = jms.getLinkedException(); //get the nested exception from MQ
-				if (linked != null) logException(linked);
-			} catch (Throwable t) { //in case MQ is not configured, just log the exception and continue
-				logger.warning("An unexpected error occurred.  Continuing without notification of change in loyalty level.");
-				logException(t);
-			}
-		} catch (Throwable t) {
-			logger.warning("Unable to get loyalty level, via "+input.toString()+".  Using cached value instead");
-			logException(t);
-			loyalty = oldLoyalty;
-		}
-		return loyalty;
-	}
+                    if (user != null) message.setId(user); // User in jwt
 
-	/** Use the Watson Tone Analyzer to determine the user's sentiment */
-	@Traced
-	Feedback invokeWatson(WatsonClient watsonClient, String watsonId, String watsonPwd, WatsonInput input) {
-		String sentiment = "Unknown";
-		try {
-			String credentials = watsonId + ":" + watsonPwd; //Watson accepts basic auth
-			String authorization = "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes());
+                    logger.fine(message.toString());
 
-			logger.info("Calling Watson Tone Analyzer");
+                    invokeJMS(message);
+                }
+            } catch (JMSException jms) { //in case MQ is not configured, just log the exception and continue
+                logger.warning("Unable to send message to JMS provider.  Continuing without notification of change in loyalty level.");
+                logException(jms);
+                Exception linked = jms.getLinkedException(); //get the nested exception from MQ
+                if (linked != null) logException(linked);
+            } catch (Throwable t) { //in case MQ is not configured, just log the exception and continue
+                logger.warning("An unexpected error occurred.  Continuing without notification of change in loyalty level.");
+                logException(t);
+            }
+        } catch (Throwable t) {
+            logger.warning("Unable to get loyalty level, via " + input.toString() + ".  Using cached value instead");
+            logException(t);
+            loyalty = oldLoyalty;
+        }
+        return loyalty;
+    }
 
-			WatsonOutput watson = watsonClient.getTone(authorization, input);
-			sentiment = watson.determineSentiment();
-		} catch (Throwable t) {
-			logger.warning("Error from Watson, with following input: "+input.toString());
-			logException(t);
-		}
+    /**
+     * Use the Watson Tone Analyzer to determine the user's sentiment
+     */
+    @WithSpan
+    Feedback invokeWatson(WatsonClient watsonClient, String watsonId, String watsonPwd, WatsonInput input) {
+        String sentiment = "Unknown";
+        try {
+            String credentials = watsonId + ":" + watsonPwd; //Watson accepts basic auth
+            String authorization = "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes());
 
-		int freeTrades = 1;
-		String message = "Thanks for providing feedback.  Have a free trade on us!";
+            logger.info("Calling Watson Tone Analyzer");
 
-		if ("Anger".equalsIgnoreCase(sentiment)) {
-			logger.info("Tone is angry");
-			freeTrades = 3;
-			message = "We're sorry you are upset.  Have three free trades on us!";
-		} else if ("Unknown".equalsIgnoreCase(sentiment)) {
-			logger.info("Tone is unknown");
-			freeTrades = 0;
-			message = "Error communicating with the Watson Tone Analyzer";
-		}
+            WatsonOutput watson = watsonClient.getTone(authorization, input);
+            sentiment = watson.determineSentiment();
+        } catch (Throwable t) {
+            logger.warning("Error from Watson, with following input: " + input.toString());
+            logException(t);
+        }
 
-		Feedback feedback = new Feedback(message, freeTrades, sentiment);
-		return feedback;
-	}
+        int freeTrades = 1;
+        String message = "Thanks for providing feedback.  Have a free trade on us!";
 
-	/** Send a JSON message to our notification queue. */
-	@Traced
-	void invokeJMS(Object json) throws JMSException {
-		if (queueCF != null) {
-			logger.fine("Preparing to send a JMS message");
+        if ("Anger".equalsIgnoreCase(sentiment)) {
+            logger.info("Tone is angry");
+            freeTrades = 3;
+            message = "We're sorry you are upset.  Have three free trades on us!";
+        } else if ("Unknown".equalsIgnoreCase(sentiment)) {
+            logger.info("Tone is unknown");
+            freeTrades = 0;
+            message = "Error communicating with the Watson Tone Analyzer";
+        }
 
-			QueueConnection connection = queueCF.createQueueConnection(mqId, mqPwd);
-			QueueSession session = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
+        Feedback feedback = new Feedback(message, freeTrades, sentiment);
+        return feedback;
+    }
 
-			String contents = json.toString();
-			TextMessage message = session.createTextMessage(contents);
+    /**
+     * Send a JSON message to our notification queue.
+     */
+    @WithSpan
+    void invokeJMS(Object json) throws JMSException {
+//		JMSContext context = jmsConnectionFactory.createContext(JMSContext.AUTO_ACKNOWLEDGE);
+        if (jmsConnectionFactory != null) {
+            logger.fine("Preparing to send a JMS message.");
+            // try-with-resources will close the context automatically
+            try (JMSContext jmsContext = jmsConnectionFactory.createContext(JMSContext.AUTO_ACKNOWLEDGE)) {
+                Queue queue = jmsContext.createQueue(queueName);
 
-			logger.info("Sending "+contents+" to "+queue.getQueueName());
+                String contents = json.toString();
+                TextMessage message = jmsContext.createTextMessage(contents);
 
-			//"mqclient" group needs "put" authority on the queue for next two lines to work
-			QueueSender sender = session.createSender(queue);
-			sender.setDeliveryMode(DeliveryMode.PERSISTENT);
-			sender.send(message);
+                logger.info("Sending " + contents + " to " + queue.getQueueName());
 
-			sender.close();
-			session.close();
-			connection.close();
+                //"mqclient" group needs "put" authority on the queue for next two lines to work
 
-			logger.info("JMS Message sent successfully!"); //exception would have occurred otherwise
-		} else {
-			logger.warning("Unable to inject JMS QueueConnectionFactory - check your MQ configuration.  No JMS message will be sent.");
-		}
-	}
+                jmsContext.createProducer().setDeliveryMode(DeliveryMode.PERSISTENT).send(queue, message);
+            } catch (JMSRuntimeException jmsre) {
+                logger.warning("Error creating JMS Context");
+                logException(jmsre);
+                jmsre.printStackTrace();
+            }
+            logger.info("JMS Message sent successfully!"); //exception would have occurred otherwise
+        } else {
+            logger.warning("Unable to inject JMS ConnectionFactory - check your MQ Broker configuration. No JMS message will be sent.");
+        }
+    }
 
-	double getCommission(String loyalty) {
-		//TODO: turn this into an ODM business rule or a FaaS function (such as in AWS Lambda)
-		double commission = 9.99;
-		logger.fine("Determining commission - loyalty level = "+loyalty);
-		if (loyalty!= null) {
-			if (loyalty.equalsIgnoreCase(BRONZE)) {
-				commission = 8.99;
-			} else if (loyalty.equalsIgnoreCase(SILVER)) {
-				commission = 7.99;
-			} else if (loyalty.equalsIgnoreCase(GOLD)) {
-				commission = 6.99;
-			} else if (loyalty.equalsIgnoreCase(PLATINUM)) {
-				commission = 5.99;
-			} 
-		}
-		logger.fine("Returning commission: "+commission);
+    double getCommission(String loyalty) {
+        //TODO: turn this into an ODM business rule or a FaaS function (such as in AWS Lambda)
+        double commission = 9.99;
+        logger.fine("Determining commission - loyalty level = " + loyalty);
+        if (loyalty != null) {
+            if (loyalty.equalsIgnoreCase(BRONZE)) {
+                commission = 8.99;
+            } else if (loyalty.equalsIgnoreCase(SILVER)) {
+                commission = 7.99;
+            } else if (loyalty.equalsIgnoreCase(GOLD)) {
+                commission = 6.99;
+            } else if (loyalty.equalsIgnoreCase(PLATINUM)) {
+                commission = 5.99;
+            }
+        }
+        logger.fine("Returning commission: " + commission);
 
-		return commission;
-	}
+        return commission;
+    }
 
-	static void logException(Throwable t) {
-		logger.warning(t.getClass().getName()+": "+t.getMessage());
+    static void logException(Throwable t) {
+        logger.warning(t.getClass().getName() + ": " + t.getMessage());
 
-		//only log the stack trace if the level has been set to at least INFO
-		if (logger.isLoggable(Level.INFO)) {
-			StringWriter writer = new StringWriter();
-			t.printStackTrace(new PrintWriter(writer));
-			logger.info(writer.toString());
-		}
-	}
+        //only log the stack trace if the level has been set to at least INFO
+        if (logger.isLoggable(Level.INFO)) {
+            StringWriter writer = new StringWriter();
+            t.printStackTrace(new PrintWriter(writer));
+            logger.info(writer.toString());
+        }
+    }
 }

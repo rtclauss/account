@@ -1,5 +1,6 @@
 /*
        Copyright 2017 IBM Corp All Rights Reserved
+       Copyright 2022-2023 Kyndryl Corp, All Rights Reserved
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -14,17 +15,18 @@
    limitations under the License.
  */
 
-package com.ibm.hybrid.cloud.sample.stocktrader.portfolio.test;
+package com.ibm.hybrid.cloud.sample.stocktrader.account.test;
 
-import static org.junit.Assert.assertTrue;
+import io.quarkus.test.junit.QuarkusTest;
+import jakarta.ws.rs.client.Client;
+import jakarta.ws.rs.client.ClientBuilder;
+import jakarta.ws.rs.client.Invocation;
+import jakarta.ws.rs.core.Response;
+import org.junit.jupiter.api.Test;
 
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
-import javax.ws.rs.client.Invocation;
-import javax.ws.rs.core.Response;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import org.junit.Test;
-
+@QuarkusTest
 public class HealthEndpointIT {
 
     private String port = System.getProperty("liberty.test.port");
@@ -42,7 +44,7 @@ public class HealthEndpointIT {
           Thread.sleep(5000);
           responseCode = makeRequest();
         }
-        assertTrue("Incorrect response code: " + responseCode, responseCode == 200);
+        assertTrue(responseCode == 200, "Incorrect response code: " + responseCode);
     }
 
     private int makeRequest() {
