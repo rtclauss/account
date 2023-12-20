@@ -61,6 +61,7 @@ To build `account` and run in dev mode, locally, clone this repo and run:
 ./mvnw clean install -Dquarkus.container-image.build=true \
     -Dquarkus.container-image.tag=<your tag> \
     -Dquarkus.container-image.group=ibmstocktrader \
+    -Dquarkus.jib.platforms=linux/amd64 \
     -Dquarkus.container-image.registry=<YOUR REGISTRY HOST>
 
 docker push <YOUR REGISTRY HOST AND REPOSITORY>
