@@ -17,14 +17,9 @@
 
 package com.ibm.hybrid.cloud.sample.stocktrader.account;
 
-import com.cloudant.client.api.ClientBuilder;
-import com.cloudant.client.api.CloudantClient;
-import com.cloudant.client.api.Database;
-import com.cloudant.client.api.model.Response;
-import com.cloudant.client.org.lightcouch.DocumentConflictException;
-import com.cloudant.client.org.lightcouch.NoDocumentException;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.client.ODMClient;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.client.WatsonClient;
+import com.ibm.hybrid.cloud.sample.stocktrader.account.db.AccountRepository;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.Account;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.Feedback;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.WatsonInput;
@@ -41,23 +36,20 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.List;
+import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-//@ApplicationPath("/")
-@Path("/account")
-@LoginConfig(authMethod = "MP-JWT", realmName = "jwt-jaspi")
-//@RequestScoped //enable interceptors (note you need a WEB-INF/beans.xml in your war)
 /** This microservice takes care of non-stock related attributes of a customer's account.  This includes
  *  commissions, account balance, sentiment, free trades, and loyalty level determination.  This version
  *  persists data to a CouchDB-derived non-SQL datastore.
  */
+@Path("/account")
+@LoginConfig(authMethod = "MP-JWT", realmName = "jwt-jaspi")
+//@RequestScoped //enable interceptors (note you need a WEB-INF/beans.xml in your war)
 @ApplicationScoped
 public class AccountService {
     private static final Logger logger = Logger.getLogger(AccountService.class.getName());
@@ -78,8 +70,7 @@ public class AccountService {
 
     private boolean delayUpdate = false;
 
-    Database accountDB;
-    CloudantClient cloudantClient;
+    private final AccountRepository accountDbRepository;
 
     private int basic = 0, bronze = 0, silver = 0, gold = 0, platinum = 0, unknown = 0; //loyalty level counts
 
@@ -95,37 +86,29 @@ public class AccountService {
     @ConfigProperty(name = "watson.id", defaultValue = "apikey") String watsonId;
     @ConfigProperty(name = "watson.pwd") String watsonPwd; //if using an API Key, it goes here
 
-    @ConfigProperty(name = "cloudant.url") String cloudantUrl;
-    @ConfigProperty(name = "cloudant.id") String cloudantId;
-    @ConfigProperty(name = "cloudant.password") String cloudantPassword;
-    @ConfigProperty(name = "cloudant.db") String cloudantDb;
+    @Inject
+    public AccountService(AccountRepository accountDbRepository){
+        this.accountDbRepository=accountDbRepository;
+    }
 
 
     // Injection/initialization takes place after the class is instantiated, so we create the connection to CouchDB/Cloudant
     // afterward the no-arg constructor is called.
     //	https://stackoverflow.com/questions/3406555/why-use-postconstruct#3406631
     @PostConstruct
-    public void postConstruct() throws MalformedURLException {
-        logger.fine("Constructing Cloudant/Couch Client");
-        if (this.cloudantClient == null) {
+    public void postConstruct() {
+        logger.fine("Constructing Watson and ODM Clients");
             synchronized (this) {
-                cloudantClient = ClientBuilder.url(new URL(cloudantUrl))
-                        .username(cloudantId)
-                        .password(cloudantPassword)
-                        .build();
-                accountDB = cloudantClient.database(cloudantDb, true);
+            if (watsonClient != null) {
+                logger.info("Watson initialization completed successfully!");
+            } else {
+                logger.warning("WATSON config properties are unset");
+            }
 
-                if (watsonClient != null) {
-                    logger.info("Watson initialization completed successfully!");
-                } else {
-                    logger.warning("WATSON config properties are unset");
-                }
-
-                if (odmClient != null) {
-                    logger.info("ODM initialization complete");
-                } else {
-                    logger.warning("ODM config properties are unset");
-                }
+            if (odmClient != null) {
+                logger.info("ODM initialization complete");
+            } else {
+                logger.warning("ODM config properties are unset");
             }
         }
     }
@@ -135,24 +118,30 @@ public class AccountService {
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed({"StockTrader", "StockViewer"})
     //Couldn't get this to work; had to do it through the web.xml instead :(
-    public List<Account> getAccounts() throws IOException {
+    public List<Account> getAccounts() {
         List<Account> accountList = null;
         int size = 0;
 
         try {
             logger.fine("Entering getAccounts");
-            if (accountDB != null) {
-                accountList = accountDB.getAllDocsRequestBuilder().includeDocs(true).build().getResponse().getDocsAs(Account.class);
+            if (accountDbRepository != null) {
+                accountList = accountDbRepository.findAll().toList();
                 size = accountList.size();
             } else {
-                logger.warning("accountDB is null, so returning empty array.  Investigate why the CDI injection failed for details");
+                logger.warning("accountDbRepository is null, so returning empty array.  Investigate why the CDI injection failed for details");
             }
         } catch (Throwable t) {
             logger.warning("Failure getting accounts");
             logException(t);
         }
 
-        logger.fine("Returning " + size + " accounts");
+        logger.fine("Returning "+size+" accounts");
+        if (logger.isLoggable(Level.FINE)){
+            for (int index=0; index<size; index++) {
+                Account account = accountList.get(index);
+                logger.fine("account["+index+"]="+account);
+            }
+        }
 
 /* Commenting out until https://github.com/OpenLiberty/open-liberty/issues/22592 is addressed
 		try {
@@ -184,38 +173,40 @@ public class AccountService {
 //	@Counted(name="accounts", description="Number of accounts created in the Stock Trader application")
     @RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
     public Account createAccount(@PathParam("owner") String owner) {
-        Account account = null;
+        Account account;
         if (owner != null) try {
             if (owner.equalsIgnoreCase(FAIL)) {
                 logger.warning("Throwing a 400 error for owner: " + owner);
                 throw new BadRequestException("Invalid value for account owner: " + owner);
             }
 
+            boolean ownerExistInRepo = accountDbRepository.findByOwner(owner).findFirst().isPresent();
+            if(ownerExistInRepo){
+                logger.warning("Account already exists for: " + owner);
+                throw new WebApplicationException("Account already exists for "+owner+"!", CONFLICT);
+            }
+
             //loyalty="Basic", balance=50.0, commissions=0.0, free=0, sentiment="Unknown", nextCommission=9.99
-            account = new Account(owner, "Basic", 50.0, 0.0, 0, "Unknown", 9.99);
+            account = new Account(owner);
 
             logger.fine("Creating account for " + owner);
 
-            Response response = accountDB.save(account);
-            if (response != null) {
-                String id = response.getId();
-                account.set_id(id);
+            account = accountDbRepository.save(account);
+            if (account != null) {
+                String id = account.getId();
                 logger.fine("Created new account for " + owner + " with id " + id);
             } else {
-                logger.warning("Failed to get response from accountDB.save()"); //shouldn't get here - exception should have been thrown if the save failed
+                logger.warning("Failed to get response from accountDbRepository.save()"); //shouldn't get here - exception should have been thrown if the save failed
             }
-
             logger.fine("Account created successfully: " + owner);
-        } catch (DocumentConflictException conflict) {
-            logger.warning("Account already exists for: " + owner);
-            logException(conflict);
-            throw new WebApplicationException("Account already exists for " + owner + "!", CONFLICT);
         } catch (Throwable t) {
             logger.warning("Failure to create account for " + owner);
             logException(t);
+            account=null;
         }
         else {
             logger.warning("Owner is null in createAccount");
+            account = null;
         }
 
         return account;
@@ -226,12 +217,14 @@ public class AccountService {
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed({"StockTrader", "StockViewer"})
     //Couldn't get this to work; had to do it through the web.xml instead :(
-    public Account getAccount(@PathParam("id") String id, @QueryParam("total") double total) throws IOException {
+    public Account getAccount(@PathParam("id") String id, @QueryParam("total") double total) {
+        Optional<Account> accountOptional;
         Account account = null;
         logger.fine("Entering getAccount");
         try {
-            account = accountDB.find(Account.class, id);
-            if (account != null) {
+            accountOptional = accountDbRepository.findById(id);
+            if (accountOptional.isPresent()) {
+                account = accountOptional.get();
                 if (total == DONT_RECALCULATE) {
                     logger.fine("Skipping recalculation of loyalty level and next commission as requested");
                 } else {
@@ -241,15 +234,15 @@ public class AccountService {
                     logger.fine("Invoking external business rule for " + id);
                     //this can be a call to either IBM ODM, or my simple Lambda function alternative, depending on the URL configured in the CR yaml
                     String loyalty = utilities.invokeODM(odmClient, odmId, odmPwd, owner, total, oldLoyalty, jwt.getName());
-                    if ((loyalty != null) && !loyalty.equalsIgnoreCase(oldLoyalty)) { //don't rev the Cloudant doc if nothing's changed
+                    if ((loyalty != null) && !loyalty.equalsIgnoreCase(oldLoyalty)) { //don't rev the doc if nothing's changed
                         account.setLoyalty(loyalty);
 
                         int free = account.getFree();
                         account.setNextCommission(free > 0 ? 0.0 : utilities.getCommission(loyalty));
 
                         if (!delayUpdate) { //if called from updateAccount, let it drive the update to Cloudant
-                            logger.fine("Calling accountDB.update() for " + id + " in getAccount due to new loyalty level");
-                            accountDB.update(account);
+                            logger.fine("Calling repository.save(account) for "+id+" in getAccount due to new loyalty level");
+                            accountDbRepository.save(account);
                         }
                     }
                 }
@@ -258,9 +251,6 @@ public class AccountService {
             } else {
                 logger.warning("Got null in getAccount for " + id + ", rather than expected NoDocumentException");
             }
-        } catch (NoDocumentException t) {
-            logger.warning("Unable to find account for " + id);
-            logException(t);
         } catch (Throwable t) {
             logger.warning("Unknown error finding account for " + id);
             logException(t);
@@ -273,7 +263,7 @@ public class AccountService {
     @Path("/{id}")
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
-    public Account updateAccount(@PathParam("id") String id, @QueryParam("total") double total) throws IOException {
+    public Account updateAccount(@PathParam("id") String id, @QueryParam("total") double total) {
         logger.fine("Entering updateAccount");
         this.delayUpdate = true;
 
@@ -307,7 +297,7 @@ public class AccountService {
                 }
 
                 logger.fine("Updating account into Cloudant: " + account);
-                accountDB.update(account);
+                accountDbRepository.save(account);
             } else {
                 logger.warning("Account is null for " + id + " in updateAccount");
             }
@@ -324,16 +314,18 @@ public class AccountService {
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
     public Account deleteAccount(@PathParam("id") String id) {
+        Optional<Account> accountOptional;
         Account account = null;
         logger.fine("Entering deleteAccount for " + id);
         try {
-            account = accountDB.find(Account.class, id); //this is sometimes failing with "Error: not_found. Reason: deleted"...
+            accountOptional = accountDbRepository.findById(id);
 
-            if (account != null) {
+            if (accountOptional.isPresent()) {
+                account = accountOptional.get();
                 String owner = account.getOwner();
                 logger.fine("Deleting account for " + owner);
 
-                accountDB.remove(account);
+                accountDbRepository.deleteById(id);
 
                 logger.fine("Successfully deleted account for " + owner); //exception would have been thrown otherwise
             } else {
@@ -352,7 +344,7 @@ public class AccountService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
-    public Feedback submitFeedback(@PathParam("id") String id, WatsonInput input) throws IOException {
+    public Feedback submitFeedback(@PathParam("id") String id, WatsonInput input) {
         String sentiment = "Unknown";
         Feedback feedback = null;
         try {
@@ -367,6 +359,7 @@ public class AccountService {
 
                 account.setFree(freeTrades);
                 account.setSentiment(feedback.getSentiment());
+                accountDbRepository.save(account);
 
                 logger.info("Returning feedback: " + feedback.toString());
             } else {

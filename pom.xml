@@ -27,11 +27,14 @@
     <app.name>account</app.name>
     <compiler-plugin.version>3.11.0</compiler-plugin.version>
     <maven.compiler.release>21</maven.compiler.release>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
     <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
     <quarkus.platform.version>3.6.1</quarkus.platform.version>
+    <jnosql.version>1.0.3</jnosql.version>
     <skipITs>true</skipITs>
     <surefire-plugin.version>3.1.2</surefire-plugin.version>
     <warContext>${app.name}</warContext>
@@ -82,6 +85,7 @@
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-smallrye-health</artifactId>
     </dependency>
+    <!-- Used for metric collection since Quarkus doesn't support OTEL Metrics (yet) -->
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-micrometer</artifactId>
@@ -132,6 +136,23 @@
       <version>2.2.0</version>
     </dependency>
     <dependency>
+      <groupId>org.eclipse.jnosql.databases</groupId>
+      <artifactId>jnosql-couchdb</artifactId>
+      <version>${jnosql.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.eclipse.jnosql.mapping</groupId>
+          <artifactId>jnosql-mapping-reflection</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jnosql.lite</groupId>
+      <artifactId>mapping-lite-processor</artifactId>
+      <version>${jnosql.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-container-image-jib</artifactId>
     </dependency>
@@ -144,41 +165,6 @@
       <groupId>io.rest-assured</groupId>
       <artifactId>rest-assured</artifactId>
       <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.cloudant</groupId>
-      <artifactId>cloudant-client</artifactId>
-      <version>2.20.1</version>
-    </dependency>
-    <dependency>
-      <groupId>com.cloudant</groupId>
-      <artifactId>cloudant-http</artifactId>
-      <version>2.20.1</version>
-    </dependency>
-    <dependency>
-      <groupId>com.squareup.okhttp3</groupId>
-      <artifactId>okhttp-urlconnection</artifactId>
-      <version>4.10.0</version>
-    </dependency>
-    <dependency>
-      <groupId>com.google.code.gson</groupId>
-      <artifactId>gson</artifactId>
-      <version>2.10.1</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.thrift</groupId>
-      <artifactId>libthrift</artifactId>
-      <version>0.18.1</version>
-    </dependency>
-    <dependency>
-      <groupId>commons-io</groupId>
-      <artifactId>commons-io</artifactId>
-      <version>2.11.0</version>
-    </dependency>
-    <dependency>
-      <groupId>commons-codec</groupId>
-      <artifactId>commons-codec</artifactId>
-      <version>1.15</version>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
