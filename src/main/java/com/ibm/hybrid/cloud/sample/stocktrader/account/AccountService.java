@@ -1,6 +1,6 @@
 /*
        Copyright 2020-2022 IBM Corp All Rights Reserved
-       Copyright 2022-2023 Kyndryl Corp, All Rights Reserved
+       Copyright 2022-2024 Kyndryl Corp, All Rights Reserved
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -23,34 +23,41 @@ import com.ibm.hybrid.cloud.sample.stocktrader.account.db.AccountRepository;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.Account;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.Feedback;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.WatsonInput;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Scope;
+import io.smallrye.common.annotation.Blocking;
+import io.smallrye.common.annotation.NonBlocking;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.security.RolesAllowed;
+import jakarta.data.Order;
+import jakarta.data.Sort;
+import jakarta.data.page.PageRequest;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import org.eclipse.microprofile.auth.LoginConfig;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-// TODO Quarkus 3.6.x does not support OpenTelemetry Metics yet
-//import org.eclipse.microprofile.metrics.annotation.Counted;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/** This microservice takes care of non-stock related attributes of a customer's account.  This includes
- *  commissions, account balance, sentiment, free trades, and loyalty level determination.  This version
- *  persists data to a CouchDB-derived non-SQL datastore.
+/**
+ * This microservice takes care of non-stock related attributes of a customer's account.  This includes
+ * commissions, account balance, sentiment, free trades, and loyalty level determination.  This version
+ * persists data to a CouchDB-derived non-SQL datastore.
  */
 @Path("/account")
 @LoginConfig(authMethod = "MP-JWT", realmName = "jwt-jaspi")
-//@RequestScoped //enable interceptors (note you need a WEB-INF/beans.xml in your war)
 @ApplicationScoped
+// Run everything in an IO Thread which prevents blocking major threads
+@NonBlocking
 public class AccountService {
     private static final Logger logger = Logger.getLogger(AccountService.class.getName());
 
@@ -67,28 +74,36 @@ public class AccountService {
     private static final String PLATINUM = "platinum";
     private static final String UNKNOWN = "unknown";
     private static final String DOLLARS = "USD";
-
-    private boolean delayUpdate = false;
-
     private final AccountRepository accountDbRepository;
-
-    private int basic = 0, bronze = 0, silver = 0, gold = 0, platinum = 0, unknown = 0; //loyalty level counts
-
-    @Inject private AccountUtilities utilities;
-
-    @Inject JsonWebToken jwt;
-
-    @RestClient private ODMClient odmClient;
-    @RestClient private WatsonClient watsonClient;
-
-    @ConfigProperty(name = "odm.id", defaultValue = "odmAdmin") String odmId;
-    @ConfigProperty(name = "odm.pwd", defaultValue = "odmAdmin") String odmPwd;
-    @ConfigProperty(name = "watson.id", defaultValue = "apikey") String watsonId;
-    @ConfigProperty(name = "watson.pwd") String watsonPwd; //if using an API Key, it goes here
+    private final int basic = 0;
+    private final int bronze = 0;
+    private final int silver = 0;
+    private final int gold = 0;
+    private final int platinum = 0;
+    private final int unknown = 0; //loyalty level counts
+    @Inject
+    JsonWebToken jwt;
+    @ConfigProperty(name = "odm.id", defaultValue = "odmAdmin")
+    String odmId;
+    @ConfigProperty(name = "odm.pwd", defaultValue = "odmAdmin")
+    String odmPwd;
+    @ConfigProperty(name = "watson.id", defaultValue = "apikey")
+    String watsonId;
+    @ConfigProperty(name = "watson.pwd")
+    String watsonPwd; //if using an API Key, it goes here
+    private boolean delayUpdate = false;
+    @Inject
+    private AccountUtilities utilities;
+    @RestClient
+    private ODMClient odmClient;
+    @RestClient
+    private WatsonClient watsonClient;
+    @Inject
+    private Tracer tracer;
 
     @Inject
-    public AccountService(AccountRepository accountDbRepository){
-        this.accountDbRepository=accountDbRepository;
+    public AccountService(AccountRepository accountDbRepository) {
+        this.accountDbRepository = accountDbRepository;
     }
 
 
@@ -98,7 +113,7 @@ public class AccountService {
     @PostConstruct
     public void postConstruct() {
         logger.fine("Constructing Watson and ODM Clients");
-            synchronized (this) {
+        synchronized (this) {
             if (watsonClient != null) {
                 logger.info("Watson initialization completed successfully!");
             } else {
@@ -117,33 +132,51 @@ public class AccountService {
     @Path("/")
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed({"StockTrader", "StockViewer"})
-    //Couldn't get this to work; had to do it through the web.xml instead :(
-    public List<Account> getAccounts() {
-        List<Account> accountList = null;
-        int size = 0;
+    public List<Account> getAllAccounts(@QueryParam("page") @DefaultValue("1") int pageNumber, @QueryParam("pageSize") @DefaultValue("10") int pageSize, @QueryParam("owners") List<String> owners) {
+        logger.fine("Entering getAllAccounts");
+        logger.fine("Page Number, " + pageNumber + " Page size: " + pageSize + ", owners to find: " + owners);
+        List<Account> pageOfAccounts = null; //= new ArrayList<>(15);
+        if (accountDbRepository != null) {
+            var pageable = PageRequest.ofPage(pageNumber).size(pageSize);
+            Span getAllAccountsSpan = tracer.spanBuilder("accountDbRepository.findAll().toList()").startSpan();
 
-        try {
-            logger.fine("Entering getAccounts");
-            if (accountDbRepository != null) {
-                accountList = accountDbRepository.findAll().toList();
-                size = accountList.size();
+            if (owners.isEmpty()) {
+                try (Scope scope = getAllAccountsSpan.makeCurrent()) {
+                    pageOfAccounts = accountDbRepository.findAll(pageable, Order.by(Sort.asc("owner"))).content();
+                } catch (Throwable t) {
+                    logException(t);
+                    getAllAccountsSpan.recordException(t);
+                    logger.severe("Error getting page of accounts");
+                } finally {
+                    getAllAccountsSpan.end();
+                }
             } else {
-                logger.warning("accountDbRepository is null, so returning empty array.  Investigate why the CDI injection failed for details");
+                try (Scope scope = getAllAccountsSpan.makeCurrent()) {
+                    pageOfAccounts = accountDbRepository.findByOwnerInOrderByOwnerAsc(owners, pageable);
+                    //Collections.sort(pageOfAccounts, Comparator.comparing(Account::getOwner));
+                    //pageOfAccounts = accountDbRepository.findAll(pageable).content();
+                } catch (Throwable t) {
+                    logException(t);
+                    getAllAccountsSpan.recordException(t);
+                    logger.severe("Error getting page of accounts");
+                } finally {
+                    getAllAccountsSpan.end();
+                }
             }
-        } catch (Throwable t) {
-            logger.warning("Failure getting accounts");
-            logException(t);
+        } else {
+            logger.warning("accountDbRepository is null, so returning empty array.  Investigate why the CDI injection failed for details");
+        }
+        if (pageOfAccounts != null && !pageOfAccounts.isEmpty()) {
+            logger.fine("Returning " + pageOfAccounts.size() + " accounts");
+            if (logger.isLoggable(Level.FINE)) {
+                for (int index = 0; index < pageOfAccounts.size(); index++) {
+                    Account account = pageOfAccounts.get(index);
+                    logger.fine("account[" + index + "]=" + account);
+                }
+            }
         }
 
-        logger.fine("Returning "+size+" accounts");
-        if (logger.isLoggable(Level.FINE)){
-            for (int index=0; index<size; index++) {
-                Account account = accountList.get(index);
-                logger.fine("account["+index+"]="+account);
-            }
-        }
-
-/* Commenting out until https://github.com/OpenLiberty/open-liberty/issues/22592 is addressed
+        /* Commenting out until https://github.com/OpenLiberty/open-liberty/issues/22592 is addressed
 		try {
 			basic=0; bronze=0; silver=0; gold=0; platinum=0; unknown=0; //reset loyalty level counts
 			for (int index=0; index<size; index++) {
@@ -164,14 +197,50 @@ public class AccountService {
 			logException(t);
 		}
 */
-        return accountList;
+
+        return pageOfAccounts;
     }
+
+//    @GET
+//    @Path("/byOwner")
+//    @Produces(MediaType.APPLICATION_JSON)
+//    @RolesAllowed({"StockTrader", "StockViewer"})
+//    public List<Account> getAccountsByOwner(@QueryParam("owners") List<String> owners){
+//        List<Account> accountList = null;
+//        long size = 0;
+//
+//        try {
+//            logger.fine("Entering getAccounts");
+//            if (accountDbRepository != null) {
+//                Span allAccountsByOwners = tracer.spanBuilder("repository.findAll(page).collect(Collectors.toList())").startSpan();
+//                try(Scope childScope = allAccountsByOwners.makeCurrent()) {
+//                     accountList = accountDbRepository.findByOwnerIn(owners);
+//                } finally {
+//                    allAccountsByOwners.end();
+//                }
+//                size = accountList.size();
+//            } else {
+//                logger.warning("accountDB is null, so returning empty array.  Investigate why the CDI injection failed for details");
+//            }
+//        } catch (Throwable t) {
+//            logger.warning("Failure getting accounts");
+//            logException(t);
+//        }
+//        if(accountList != null) {
+//            logger.fine("Returning " + size + " accounts");
+//            if (logger.isLoggable(Level.FINE)) for (int index = 0; index < size; index++) {
+//                Account account = accountList.get(index);
+//                logger.fine("account[" + index + "]=" + account);
+//            }
+//        }
+//        return accountList;
+//    }
 
     @POST
     @Path("/{owner}")
     @Produces(MediaType.APPLICATION_JSON)
 //	@Counted(name="accounts", description="Number of accounts created in the Stock Trader application")
-    @RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
+    @RolesAllowed({"StockTrader"})
     public Account createAccount(@PathParam("owner") String owner) {
         Account account;
         if (owner != null) try {
@@ -180,18 +249,35 @@ public class AccountService {
                 throw new BadRequestException("Invalid value for account owner: " + owner);
             }
 
-            boolean ownerExistInRepo = accountDbRepository.findByOwner(owner).findFirst().isPresent();
-            if(ownerExistInRepo){
-                logger.warning("Account already exists for: " + owner);
-                throw new WebApplicationException("Account already exists for "+owner+"!", CONFLICT);
+            Span findByOwnerQuerySpan = tracer.spanBuilder("accountDbRepository.findByOwner(owner).findFirst()").startSpan();
+            try (Scope childScope = findByOwnerQuerySpan.makeCurrent()) {
+                boolean ownerExistInRepo = accountDbRepository.findByOwner(owner).isPresent();
+                if (ownerExistInRepo) {
+                    logger.warning("Account already exists for: " + owner);
+                    throw new Exception();
+                }
+            } catch (Throwable t) {
+                findByOwnerQuerySpan.recordException(t);
+                throw new WebApplicationException("Account already exists for " + owner + "!", CONFLICT);
+            } finally {
+                findByOwnerQuerySpan.end();
             }
 
             //loyalty="Basic", balance=50.0, commissions=0.0, free=0, sentiment="Unknown", nextCommission=9.99
             account = new Account(owner);
 
             logger.fine("Creating account for " + owner);
+            Span createAccountSpan = tracer.spanBuilder("accountDbRepository.save(account)").startSpan();
+            try (Scope childScope = createAccountSpan.makeCurrent()) {
+                account = accountDbRepository.save(account);
+            } catch (Throwable t) {
+                logException(t);
+                createAccountSpan.recordException(t);
+                account = null;
+            } finally {
+                createAccountSpan.end();
+            }
 
-            account = accountDbRepository.save(account);
             if (account != null) {
                 String id = account.getId();
                 logger.fine("Created new account for " + owner + " with id " + id);
@@ -202,7 +288,7 @@ public class AccountService {
         } catch (Throwable t) {
             logger.warning("Failure to create account for " + owner);
             logException(t);
-            account=null;
+            account = null;
         }
         else {
             logger.warning("Owner is null in createAccount");
@@ -216,12 +302,13 @@ public class AccountService {
     @Path("/{id}")
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed({"StockTrader", "StockViewer"})
-    //Couldn't get this to work; had to do it through the web.xml instead :(
+    @Blocking
     public Account getAccount(@PathParam("id") String id, @QueryParam("total") double total) {
         Optional<Account> accountOptional;
         Account account = null;
-        logger.fine("Entering getAccount");
+        logger.fine("Entering getAccount for id " + id);
         try {
+            // TODO add a span around this call
             accountOptional = accountDbRepository.findById(id);
             if (accountOptional.isPresent()) {
                 account = accountOptional.get();
@@ -232,8 +319,18 @@ public class AccountService {
                     String oldLoyalty = account.getLoyalty();
 
                     logger.fine("Invoking external business rule for " + id);
-                    //this can be a call to either IBM ODM, or my simple Lambda function alternative, depending on the URL configured in the CR yaml
-                    String loyalty = utilities.invokeODM(odmClient, odmId, odmPwd, owner, total, oldLoyalty, jwt.getName());
+                    String loyalty = null;
+                    Span callODMSpan = tracer.spanBuilder("utilities.invokeODM()").startSpan();
+                    try (Scope scope = callODMSpan.makeCurrent()) {
+                        //this can be a call to either IBM ODM, or my simple Lambda function alternative, depending on the URL configured in the CR yaml
+                        loyalty = utilities.invokeODM(odmClient, odmId, odmPwd, owner, total, oldLoyalty, jwt.getName());
+                    } catch (Throwable t) {
+                        callODMSpan.recordException(t);
+                        logger.warning("Error determining account level for " + id);
+                        logException(t);
+                    } finally {
+                        callODMSpan.end();
+                    }
                     if ((loyalty != null) && !loyalty.equalsIgnoreCase(oldLoyalty)) { //don't rev the doc if nothing's changed
                         account.setLoyalty(loyalty);
 
@@ -241,13 +338,21 @@ public class AccountService {
                         account.setNextCommission(free > 0 ? 0.0 : utilities.getCommission(loyalty));
 
                         if (!delayUpdate) { //if called from updateAccount, let it drive the update to Cloudant
-                            logger.fine("Calling repository.save(account) for "+id+" in getAccount due to new loyalty level");
-                            accountDbRepository.save(account);
+                            logger.fine("Calling repository.save(account) for " + id + " in getAccount due to new loyalty level");
+                            Span updateRepo = tracer.spanBuilder("accountDbRepository.save(account)").startSpan();
+                            try (Scope scope = updateRepo.makeCurrent()) {
+                                accountDbRepository.save(account);
+                            } catch (Throwable t) {
+                                callODMSpan.recordException(t);
+                                logger.warning("Error saving account level update for " + id);
+                                logException(t);
+                            } finally {
+                                updateRepo.end();
+                            }
                         }
                     }
                 }
-
-                logger.fine("Returning " + account.toString());
+                logger.fine("Returning " + account);
             } else {
                 logger.warning("Got null in getAccount for " + id + ", rather than expected NoDocumentException");
             }
@@ -262,7 +367,8 @@ public class AccountService {
     @PUT
     @Path("/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    @RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
+    @RolesAllowed({"StockTrader"})
+    @Blocking
     public Account updateAccount(@PathParam("id") String id, @QueryParam("total") double total) {
         logger.fine("Entering updateAccount");
         this.delayUpdate = true;
@@ -297,7 +403,16 @@ public class AccountService {
                 }
 
                 logger.fine("Updating account into Cloudant: " + account);
-                accountDbRepository.save(account);
+                Span saveToDatabaseSpan = tracer.spanBuilder("accountDbRepository.save(account)").startSpan();
+                try (Scope scope = saveToDatabaseSpan.makeCurrent()) {
+                    accountDbRepository.save(account);
+                } catch (Throwable t) {
+                    logException(t);
+                    saveToDatabaseSpan.recordException(t);
+                    logger.severe("Error getting accounts");
+                } finally {
+                    saveToDatabaseSpan.end();
+                }
             } else {
                 logger.warning("Account is null for " + id + " in updateAccount");
             }
@@ -312,7 +427,7 @@ public class AccountService {
     @DELETE
     @Path("/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    @RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
+    @RolesAllowed({"StockTrader"})
     public Account deleteAccount(@PathParam("id") String id) {
         Optional<Account> accountOptional;
         Account account = null;
@@ -343,7 +458,7 @@ public class AccountService {
     @Path("/{id}/feedback")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    @RolesAllowed({"StockTrader"}) //Couldn't get this to work; had to do it through the web.xml instead :(
+    @RolesAllowed({"StockTrader"})
     public Feedback submitFeedback(@PathParam("id") String id, WatsonInput input) {
         String sentiment = "Unknown";
         Feedback feedback = null;
@@ -361,7 +476,7 @@ public class AccountService {
                 account.setSentiment(feedback.getSentiment());
                 accountDbRepository.save(account);
 
-                logger.info("Returning feedback: " + feedback.toString());
+                logger.info("Returning feedback: " + feedback);
             } else {
                 logger.warning("Account not found for " + id + " in submitFeedback");
             }

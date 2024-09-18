@@ -1,6 +1,6 @@
 /*
        Copyright 2020 IBM Corp All Rights Reserved
-       Copyright 2023 Kyndryl Corp, All Rights Reserved
+       Copyright 2023-2024 Kyndryl Corp, All Rights Reserved
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -32,5 +32,5 @@ public interface WatsonClient {
 	@Path("/")
 	@Consumes("application/json")
 	@Produces("application/json")
-	public WatsonOutput getTone(@HeaderParam("Authorization") String basicAuth, WatsonInput input);
+    public WatsonOutput getTone(@HeaderParam("Authorization") String basicAuth, WatsonInput input);
 }
