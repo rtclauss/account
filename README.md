@@ -1,6 +1,7 @@
 <!--
        Copyright 2017-2021 IBM Corp All Rights Reserved
-       Copyright 2022-2023 Kyndryl, All Rights Reserved
+       Copyright 2022-2024 Kyndryl, All Rights Reserved
+
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -15,8 +16,7 @@
    limitations under the License.
 -->
 
-This service manages user *accounts*.  The data is backed by a CouchDB-complient document database (Cloudant, CouchDB).
-The following operations are available:
+This service manages user *accounts*.  The data is backed by a CouchDB-complient document database (Cloudant, CouchDB).  The following operations are available:
 
 `GET /` - gets all accounts.
 
@@ -37,14 +37,13 @@ operation takes a JSON object in the http body, with a single field named *text*
 
 This microservice calls out to three other external services. First, there is a business rule that determines the Loyalty Level
 of this account. This is called via REST. `POST`ing feedback also makes a REST call to Watson to determine the sentiment and, potentially,
-provide free trades depending on the sentiment. Finally, there is a Jakarta Messaging message that is sent when the loyalty level changes.
-All three of these services are optional.
+provide free trades depending on the sentiment. Finally, there is a Jakarta Messaging message that is sent when the loyalty level changes.  All three of these
+services are optional.
 
 The code should work with any *document-based NoSQL* provider that supports the CouchDB API.  It has been tested with **CouchDB** and with **Cloudant**.
-The database can either be another pod in the same *Kubernetes* environment, or in a VM in the cloud, or
+The database can either be another pod in the same *Kubernetes* environment, or
 it can be running on "bare metal" in a traditional on-premises environment.  Endpoint and credential info is
-specified in the *Kubernetes* secret and made available as environment variables to the application.properties of Quarkus.
-See the *manifests/portfolio-values.yaml* for details.
+specified in the *Kubernetes* secret and made available as environment variables to the application.properties of Quarkus.  See the *manifests/portfolio-values.yaml* for details.
 
 The Jakarta Messaging functionality supports any AMQP 1.0 messaging provider. IBM MQ 9.2.x+ (with [AMQP 1.0 support enabled](https://developer.ibm.com/tutorials/mq-setting-up-amqp-with-mq)) and Apache ActiveMQ have both been tested.
 
@@ -56,13 +55,18 @@ To build `account` and run in dev mode, locally, clone this repo and run:
 ./mvnw quarkus:dev
 ```
 
+#### To test with TestContainers
+
+```bash
+./mvnw test -Dquarkus.container-image.build=true
+```
+
 #### Build container and push to container registry
 ```bash
-./mvnw clean install -Dquarkus.container-image.build=true \
+./mvnw clean install -Dquarkus.container-image.build=true \                                                                                                              ✔  base   system   14:26:36  
     -Dquarkus.container-image.tag=<your tag> \
     -Dquarkus.container-image.group=ibmstocktrader \
-    -Dquarkus.jib.platforms=linux/amd64 \
-    -Dquarkus.container-image.registry=<YOUR REGISTRY HOST>
+    -Dquarkus.container-image.registry=<YOUR REGISTRY HOST> 
 
 docker push <YOUR REGISTRY HOST AND REPOSITORY>
 
