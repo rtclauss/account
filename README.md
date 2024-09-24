@@ -65,7 +65,7 @@ To build `account` and run in dev mode, locally, clone this repo and run:
 The first command builds the container image while the second, `docker push`, pushes the image to the registry you configured.
 
 ```bash
-./mvnw clean install -Dquarkus.container-image.build=true \                                                                                                              ✔  base   system   14:26:36  
+./mvnw clean install -Dquarkus.container-image.build=true \ 
     -Dquarkus.container-image.tag=<your tag> \
     -Dquarkus.container-image.group=ibmstocktrader \
     -Dquarkus.container-image.registry=<YOUR REGISTRY HOST> 
@@ -76,7 +76,7 @@ docker push <YOUR REGISTRY HOST AND REPOSITORY>
 To do the same but skipping test cases:
 ```bash
 ./mvnw clean install -DskipTests=true \
-    -Dquarkus.container-image.build=true \                                                                                                              ✔  base   system   14:26:36  
+    -Dquarkus.container-image.build=true \  
     -Dquarkus.container-image.tag=<your tag> \
     -Dquarkus.container-image.group=ibmstocktrader \
     -Dquarkus.container-image.registry=<YOUR REGISTRY HOST> 
