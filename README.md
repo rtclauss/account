@@ -41,9 +41,9 @@ provide free trades depending on the sentiment. Finally, there is a Jakarta Mess
 services are optional.
 
 The code should work with any *document-based NoSQL* provider that supports the CouchDB API.  It has been tested with **CouchDB** and with **Cloudant**.
-The database can either be another pod in the same *Kubernetes* environment, or
+The database can either be another pod in the same *Kubernetes* environment, a VM in the Cloud, or
 it can be running on "bare metal" in a traditional on-premises environment.  Endpoint and credential info is
-specified in the *Kubernetes* secret and made available as environment variables to the application.properties of Quarkus.  See the *manifests/portfolio-values.yaml* for details.
+specified in the *Kubernetes* secret and made available as environment variables to the application.properties of Quarkus. See the *manifests/portfolio-values.yaml* for details.
 
 The Jakarta Messaging functionality supports any AMQP 1.0 messaging provider. IBM MQ 9.2.x+ (with [AMQP 1.0 support enabled](https://developer.ibm.com/tutorials/mq-setting-up-amqp-with-mq)) and Apache ActiveMQ have both been tested.
 
@@ -62,6 +62,8 @@ To build `account` and run in dev mode, locally, clone this repo and run:
 ```
 
 #### Build container and push to container registry
+The first command builds the container image while the second, `docker push`, pushes the image to the registry you configured.
+
 ```bash
 ./mvnw clean install -Dquarkus.container-image.build=true \                                                                                                              ✔  base   system   14:26:36  
     -Dquarkus.container-image.tag=<your tag> \
@@ -69,7 +71,15 @@ To build `account` and run in dev mode, locally, clone this repo and run:
     -Dquarkus.container-image.registry=<YOUR REGISTRY HOST> 
 
 docker push <YOUR REGISTRY HOST AND REPOSITORY>
+```
 
+To do the same but skipping test cases:
+```bash
+./mvnw clean install -DskipTests=true \
+    -Dquarkus.container-image.build=true \                                                                                                              ✔  base   system   14:26:36  
+    -Dquarkus.container-image.tag=<your tag> \
+    -Dquarkus.container-image.group=ibmstocktrader \
+    -Dquarkus.container-image.registry=<YOUR REGISTRY HOST> 
 ```
 
 #### Run container
