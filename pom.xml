@@ -25,7 +25,7 @@
   <name>StockTrader - account</name>
   <properties>
     <app.name>account</app.name>
-    <compiler-plugin.version>3.11.0</compiler-plugin.version>
+    <compiler-plugin.version>3.12.1</compiler-plugin.version>
     <maven.compiler.release>21</maven.compiler.release>
     <maven.compiler.source>21</maven.compiler.source>
     <maven.compiler.target>21</maven.compiler.target>
@@ -33,10 +33,11 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
     <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-    <quarkus.platform.version>3.6.1</quarkus.platform.version>
-    <jnosql.version>1.0.3</jnosql.version>
+    <quarkus.platform.version>3.14.4</quarkus.platform.version>
+    <testcontainers.version>1.19.3</testcontainers.version>
+    <jnosql.version>1.1.1</jnosql.version>
     <skipITs>true</skipITs>
-    <surefire-plugin.version>3.1.2</surefire-plugin.version>
+    <surefire-plugin.version>3.2.3</surefire-plugin.version>
     <warContext>${app.name}</warContext>
   </properties>
   <dependencyManagement>
@@ -62,6 +63,13 @@
         <type>pom</type>
         <scope>import</scope>
       </dependency>
+      <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>testcontainers-bom</artifactId>
+        <version>${testcontainers.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
     </dependencies>
   </dependencyManagement>
   <dependencies>
@@ -71,7 +79,7 @@
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
-      <artifactId>quarkus-resteasy-reactive</artifactId>
+      <artifactId>quarkus-rest</artifactId>
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
@@ -80,6 +88,10 @@
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-smallrye-jwt</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-hibernate-validator</artifactId>
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
@@ -92,11 +104,11 @@
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
-      <artifactId>quarkus-resteasy-reactive-jsonb</artifactId>
+      <artifactId>quarkus-rest-jsonb</artifactId>
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
-      <artifactId>quarkus-resteasy-reactive-jaxb</artifactId>
+      <artifactId>quarkus-rest-jaxb</artifactId>
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
@@ -108,7 +120,7 @@
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
-      <artifactId>quarkus-rest-client-reactive-jaxb</artifactId>
+      <artifactId>quarkus-rest-client-jsonb</artifactId>
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
@@ -124,16 +136,11 @@
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
-      <artifactId>quarkus-rest-client-reactive-jsonb</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.quarkus</groupId>
       <artifactId>quarkus-arc</artifactId>
     </dependency>
     <dependency>
       <groupId>io.quarkiverse.messaginghub</groupId>
       <artifactId>quarkus-pooled-jms</artifactId>
-      <version>2.2.0</version>
     </dependency>
     <dependency>
       <groupId>org.eclipse.jnosql.databases</groupId>
@@ -157,8 +164,19 @@
       <artifactId>quarkus-container-image-jib</artifactId>
     </dependency>
     <dependency>
+      <!-- Used to create indexes on startup -->
+      <groupId>com.ibm.cloud</groupId>
+      <artifactId>cloudant</artifactId>
+      <version>0.9.1</version>
+    </dependency>
+    <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-junit5</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus.junit5</groupId>
+      <artifactId>junit5-virtual-threads</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -167,9 +185,27 @@
       <scope>test</scope>
     </dependency>
     <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-test-security-oidc</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.github.javafaker</groupId>
+      <artifactId>javafaker</artifactId>
+      <version>1.0.2</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-jdk14</artifactId>
       <version>2.0.5</version>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers</artifactId>
+      <version>${testcontainers.version}</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
   <build>
@@ -206,6 +242,7 @@
             <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
             <maven.home>${maven.home}</maven.home>
           </systemPropertyVariables>
+          <argLine>-Djdk.tracePinnedThreads</argLine>
         </configuration>
       </plugin>
       <plugin>
@@ -239,7 +276,8 @@
       </activation>
       <properties>
         <skipITs>false</skipITs>
-        <quarkus.package.type>native</quarkus.package.type>
+        <quarkus.native.enabled>true</quarkus.native.enabled>
+        <quarkus.package.jar.enabled>false</quarkus.package.jar.enabled>
       </properties>
     </profile>
   </profiles>

@@ -1,6 +1,6 @@
 /*
        Copyright 2020-2021 IBM Corp All Rights Reserved
-       Copyright 2022-2023 Kyndryl Corp, All Rights Reserved
+       Copyright 2022-2024 Kyndryl Corp, All Rights Reserved
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -20,7 +20,11 @@ package com.ibm.hybrid.cloud.sample.stocktrader.account;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.client.ODMClient;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.client.WatsonClient;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.*;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Scope;
 import io.opentelemetry.instrumentation.annotations.WithSpan;
+import io.smallrye.common.annotation.Blocking;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.jms.*;
@@ -38,16 +42,13 @@ import java.util.logging.Logger;
 @ApplicationScoped
 public class AccountUtilities {
     private static final Logger logger = Logger.getLogger(AccountUtilities.class.getName());
-
-    private boolean odmBroken = false; //used to only report failures of calls to ODM once, rather than every time
-
     //Our ODM rule will return its own values for levels, generally in all caps
     private static final String BASIC = "Basic";
     private static final String BRONZE = "Bronze";
     private static final String SILVER = "Silver";
     private static final String GOLD = "Gold";
     private static final String PLATINUM = "Platinum";
-
+    private boolean odmBroken = false; //used to only report failures of calls to ODM once, rather than every time
     @Inject
     private ConnectionFactory jmsConnectionFactory;
 
@@ -57,6 +58,20 @@ public class AccountUtilities {
     @ConfigProperty(name = "messaging.enabled")
     private boolean useJMS;
 
+    @Inject
+    private Tracer tracer;
+
+    static void logException(Throwable t) {
+        logger.warning(t.getClass().getName() + ": " + t.getMessage());
+
+        //only log the stack trace if the level has been set to at least INFO
+        if (logger.isLoggable(Level.INFO)) {
+            StringWriter writer = new StringWriter();
+            t.printStackTrace(new PrintWriter(writer));
+            logger.info(writer.toString());
+        }
+    }
+
     @WithSpan
     String invokeODM(ODMClient odmClient, String odmId, String odmPwd, String owner, double overallTotal, String oldLoyalty, String user) {
         String loyalty = null;
@@ -65,7 +80,8 @@ public class AccountUtilities {
             String credentials = odmId + ":" + odmPwd;
             String basicAuth = "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes());
 
-            try {
+            Span callOdmSpan = tracer.spanBuilder("odmClient.getLoyaltyLevel(input)").startSpan();
+            try (Scope scope = callOdmSpan.makeCurrent()) {
                 //call the LoyaltyLevel business rule to get the current loyalty level of this portfolio
                 logger.fine("Calling loyalty-level ODM business rule for " + owner);
                 logger.fine(input.toString());
@@ -74,9 +90,12 @@ public class AccountUtilities {
                 loyalty = result.determineLoyalty();
                 logger.fine("New loyalty level for " + owner + " is " + loyalty);
             } catch (Throwable t) {
+                callOdmSpan.recordException(t);
                 logger.warning("Error invoking ODM:" + t.getClass().getName() + ": " + t.getMessage() + ".  Loyalty level will remain unchanged.");
                 if (!odmBroken) logException(t);
                 odmBroken = true; //so logs aren't full of this stack trace on every getAccount
+            } finally {
+                callOdmSpan.end();
             }
 
             if ((oldLoyalty == null) || (loyalty == null)) return loyalty;
@@ -90,14 +109,21 @@ public class AccountUtilities {
                     if (user != null) message.setId(user); // User in jwt
 
                     logger.fine(message.toString());
-
-                    invokeJMS(message);
+                    Span invokeJMSSpan = tracer.spanBuilder("invokeJMS(message)").startSpan();
+                    try (Scope scope = invokeJMSSpan.makeCurrent()) {
+                        invokeJMS(message);
+                    } catch (Throwable t) {
+                        logException(t);
+                        invokeJMSSpan.recordException(t);
+                        logger.warning("Unable to send message to JMS provider.  Continuing without notification of change in loyalty level.");
+                        if (t instanceof JMSException) {
+                            Exception linked = ((JMSException) t).getLinkedException(); //get the nested exception from MQ
+                            if (linked != null) logException(linked);
+                        }
+                    } finally {
+                        invokeJMSSpan.end();
+                    }
                 }
-            } catch (JMSException jms) { //in case MQ is not configured, just log the exception and continue
-                logger.warning("Unable to send message to JMS provider.  Continuing without notification of change in loyalty level.");
-                logException(jms);
-                Exception linked = jms.getLinkedException(); //get the nested exception from MQ
-                if (linked != null) logException(linked);
             } catch (Throwable t) { //in case MQ is not configured, just log the exception and continue
                 logger.warning("An unexpected error occurred.  Continuing without notification of change in loyalty level.");
                 logException(t);
@@ -151,7 +177,6 @@ public class AccountUtilities {
      */
     @WithSpan
     void invokeJMS(Object json) throws JMSException {
-//		JMSContext context = jmsConnectionFactory.createContext(JMSContext.AUTO_ACKNOWLEDGE);
         if (jmsConnectionFactory != null) {
             logger.fine("Preparing to send a JMS message.");
             // try-with-resources will close the context automatically
@@ -170,6 +195,7 @@ public class AccountUtilities {
                 logger.warning("Error creating JMS Context");
                 logException(jmsre);
                 jmsre.printStackTrace();
+                throw new JMSException(jmsre.getLocalizedMessage(), jmsre.getErrorCode(), jmsre);
             }
             logger.info("JMS Message sent successfully!"); //exception would have occurred otherwise
         } else {
@@ -195,16 +221,5 @@ public class AccountUtilities {
         logger.fine("Returning commission: " + commission);
 
         return commission;
-    }
-
-    static void logException(Throwable t) {
-        logger.warning(t.getClass().getName() + ": " + t.getMessage());
-
-        //only log the stack trace if the level has been set to at least INFO
-        if (logger.isLoggable(Level.INFO)) {
-            StringWriter writer = new StringWriter();
-            t.printStackTrace(new PrintWriter(writer));
-            logger.info(writer.toString());
-        }
     }
 }
