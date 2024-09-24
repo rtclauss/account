@@ -22,6 +22,10 @@ import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
 
+/***
+ * Test the healthcheck code is testing CouchDB and that the healthcheck fails properly
+ * because CouchDB has not started.
+ */
 @QuarkusTest
 public class NoCouchDbReadinessTest {
     @Test

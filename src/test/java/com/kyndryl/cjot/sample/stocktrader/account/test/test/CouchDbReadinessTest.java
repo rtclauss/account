@@ -24,6 +24,10 @@ import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
 
+
+/***
+ * Test the healthcheck code is testing CouchDB and that the healthcheck passes
+ */
 @QuarkusTest
 @WithTestResource(value = CouchDBTestResource.class, parallel = true)
 public class CouchDbReadinessTest {
