@@ -13,15 +13,15 @@
    See the License for the specific language governing permissions and
    limitations under the License.
  */
-package com.kyndryl.cjot.sample.stocktrader.account.test.test.amqp;
+package com.kyndryl.cjot.sample.stocktrader.account.test.couchdb;
 
 import org.testcontainers.containers.wait.strategy.LogMessageWaitStrategy;
 
-public class AMQPStartupLogWaitStrategy extends LogMessageWaitStrategy {
-    private static final String regEx = ".*AMQ221007: Server is now active.*";
+public class CouchDBStartupLogWaitStrategy extends LogMessageWaitStrategy {
 
-    public AMQPStartupLogWaitStrategy() {
+    private static final String regEx = ".*Apache CouchDB has started. Time to relax..*";
+
+    public CouchDBStartupLogWaitStrategy() {
         withRegEx(regEx);
     }
-
 }
