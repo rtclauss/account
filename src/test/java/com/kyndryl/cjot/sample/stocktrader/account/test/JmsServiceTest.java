@@ -13,13 +13,14 @@
    See the License for the specific language governing permissions and
    limitations under the License.
  */
-package com.kyndryl.cjot.sample.stocktrader.account.test.test;
+package com.kyndryl.cjot.sample.stocktrader.account.test;
 
 import com.ibm.hybrid.cloud.sample.stocktrader.account.AccountService;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.Account;
-import com.kyndryl.cjot.sample.stocktrader.account.test.test.couchdb.CouchDBTestResource;
-import com.kyndryl.cjot.sample.stocktrader.account.test.test.jms.BrokenJmsTestProfile;
-import io.quarkus.test.common.WithTestResource;
+import com.kyndryl.cjot.sample.stocktrader.account.test.amqp.AMQPTestResource;
+import com.kyndryl.cjot.sample.stocktrader.account.test.couchdb.CouchDBTestResource;
+import com.kyndryl.cjot.sample.stocktrader.account.test.jms.JmsTestProfile;
+import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.common.http.TestHTTPEndpoint;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
@@ -37,14 +38,14 @@ import org.junit.jupiter.api.Test;
 import static io.restassured.RestAssured.given;
 
 /**
- * These test cases interact with CouchDB and have a broken AMQP Connection. They do not put messages on a messaging provider
+ * These test cases interact with CouchDB and AMQP. They do put messages on a messaging provider
  */
 @QuarkusTest
-@WithTestResource(value = CouchDBTestResource.class, parallel = true)
+@QuarkusTestResource(value = CouchDBTestResource.class, restrictToAnnotatedClass = true, parallel = true)
+@QuarkusTestResource(value = AMQPTestResource.class, restrictToAnnotatedClass = true, parallel = true)
 @TestHTTPEndpoint(AccountService.class)
-@TestProfile(BrokenJmsTestProfile.class)
-public class BrokenJmsServiceTest extends AbstractIntegrationTest {
-
+@TestProfile(JmsTestProfile.class)
+public class JmsServiceTest extends AbstractIntegrationTest {
     @Test
     // Set up the JWT/Security items
     @TestSecurity(user = "stock", roles = "StockTrader")
@@ -56,7 +57,7 @@ public class BrokenJmsServiceTest extends AbstractIntegrationTest {
             @ConfigMetadata(key = "issuer", value = "http://stock-trader.ibm.com"),
             @ConfigMetadata(key = "audience", value = "stock-trader")
     })
-    public void jms_testPlatinumUpdateAccountEndpoint()  {
+    public void jms_testPlatinumUpdateAccountEndpoint() {
 
         Account account = new Account(faker.name().fullName());
 
@@ -77,7 +78,6 @@ public class BrokenJmsServiceTest extends AbstractIntegrationTest {
                         .extract().as(new TypeRef<>() {
                         }); // return the values back
 
-        // We should still get good data back.
         // Verify everything that we created was returned.
         Assertions.assertEquals(account.getId(), persistedAccount.getId());
         Assertions.assertEquals("Platinum", persistedAccount.getLoyalty());

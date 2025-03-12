@@ -13,11 +13,11 @@
    See the License for the specific language governing permissions and
    limitations under the License.
  */
-package com.kyndryl.cjot.sample.stocktrader.account.test.test;
+package com.kyndryl.cjot.sample.stocktrader.account.test;
 
 import com.ibm.hybrid.cloud.sample.stocktrader.account.AccountService;
 import com.ibm.hybrid.cloud.sample.stocktrader.account.json.Account;
-import com.kyndryl.cjot.sample.stocktrader.account.test.test.couchdb.CouchDBTestResource;
+import com.kyndryl.cjot.sample.stocktrader.account.test.couchdb.CouchDBTestResource;
 import io.quarkus.test.common.WithTestResource;
 import io.quarkus.test.common.http.TestHTTPEndpoint;
 import io.quarkus.test.junit.QuarkusTest;

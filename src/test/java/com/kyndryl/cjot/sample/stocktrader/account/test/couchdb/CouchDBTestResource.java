@@ -13,7 +13,7 @@
    See the License for the specific language governing permissions and
    limitations under the License.
  */
-package com.kyndryl.cjot.sample.stocktrader.account.test.test.couchdb;
+package com.kyndryl.cjot.sample.stocktrader.account.test.couchdb;
 
 import io.quarkus.test.common.DevServicesContext;
 import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;

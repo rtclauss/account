@@ -13,26 +13,18 @@
    See the License for the specific language governing permissions and
    limitations under the License.
  */
-package com.kyndryl.cjot.sample.stocktrader.account.test.test.jms;
+package com.kyndryl.cjot.sample.stocktrader.account.test.jms;
 
 import io.quarkus.test.junit.QuarkusTestProfile;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
-public class BrokenJmsTestProfile implements QuarkusTestProfile {
+public class JmsTestProfile implements QuarkusTestProfile {
 
     @Override
     public Map<String, String> getConfigOverrides() {
-        Map<String, String> configOverrides = new HashMap<>(5);
-        configOverrides.put("messaging.enabled", "true");
-        configOverrides.put("quarkus.qpid-jms.url", "amqp://badhostname:13215");
-        configOverrides.put("quarkus.qpid-jms.username", "fake");
-        configOverrides.put("quarkus.qpid-jms.password", "fake");
-        configOverrides.put("quarkus.qpid-jms.wrap", "true");
-
-        return configOverrides;
+        return Collections.singletonMap("messaging.enabled", "true");
     }
 
     /**
