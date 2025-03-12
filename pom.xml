@@ -33,9 +33,9 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
     <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-    <quarkus.platform.version>3.14.4</quarkus.platform.version>
-    <testcontainers.version>1.19.3</testcontainers.version>
-    <jnosql.version>1.1.1</jnosql.version>
+    <quarkus.platform.version>3.19.3</quarkus.platform.version>
+    <testcontainers.version>1.20.4</testcontainers.version>
+    <jnosql.version>1.1.4</jnosql.version>
     <skipITs>true</skipITs>
     <surefire-plugin.version>3.2.3</surefire-plugin.version>
     <warContext>${app.name}</warContext>
@@ -167,7 +167,7 @@
       <!-- Used to create indexes on startup -->
       <groupId>com.ibm.cloud</groupId>
       <artifactId>cloudant</artifactId>
-      <version>0.9.1</version>
+      <version>0.10.0</version>
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
@@ -204,7 +204,6 @@
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>testcontainers</artifactId>
-      <version>${testcontainers.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
