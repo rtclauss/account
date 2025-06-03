@@ -2,9 +2,19 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   name: account
+  description: Stores specific information about accounts and trades in MongoDB/DocumentDB and Cloudant/CouchDB
   annotations:
     github.com/project-slug: rtclauss/account
+  tags:
+    - java
 spec:
-  type: other
-  lifecycle: unknown
+  type: service
+  lifecycle: production
   owner: guests
+  providesApis:
+    - account
+  dependsOn:
+    - couchDB
+    - mongoDB
+  dependencyOf:
+    - trader
