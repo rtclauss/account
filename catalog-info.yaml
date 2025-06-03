@@ -13,8 +13,5 @@ spec:
   owner: guests
   providesApis:
     - account
-  dependsOn:
-    - couchDB
-    - mongoDB
   dependencyOf:
     - trader
