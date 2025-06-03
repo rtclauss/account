@@ -14,4 +14,4 @@ spec:
   providesApis:
     - account
   dependencyOf:
-    - trader
+    - component:default/trader
