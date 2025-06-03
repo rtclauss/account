@@ -64,7 +64,7 @@ public class WatsonOutput {
     public String toString() {
         StringBuffer json = new StringBuffer("{\"document_tone\": ");
         if (document_tone != null) {
-            json.append(document_tone.toString());
+            json.append(document_tone);
          } else {
             json.append("{}");
          }
