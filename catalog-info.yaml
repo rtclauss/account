@@ -1,9 +1,17 @@
 apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: stocktrader
+  description: Stock Trader
+spec:
+  owner: guests
+--
+apiVersion: backstage.io/v1alpha1
 kind: API
 spec:
   type: openapi
   lifecycle: production
-  owner: user:guest
+  owner: guests
   definition:
     $text: src/main/generated/openapi/openapi.yaml
 metadata:
@@ -17,7 +25,7 @@ kind: Component
 spec:
   type: application
   lifecycle: production
-  owner: user:guest
+  owner: guests
   providesApis:
   - account-api
   dependsOn:
