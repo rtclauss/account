@@ -23,7 +23,9 @@ metadata:
 apiVersion: backstage.io/v1alpha1
 kind: Component
 spec:
-  type: application
+  # the type must be a service for the CI/CD tab to render unless you change the
+  # EntityPage.tsx to use a ComponentType of `application`
+  type: service
   lifecycle: production
   system: stocktrader
   owner: guests
