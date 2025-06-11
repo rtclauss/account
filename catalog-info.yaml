@@ -1,17 +1,37 @@
+ 
+apiVersion: backstage.io/v1alpha1
+kind: API
+spec:
+  type: openapi
+  lifecycle: production
+  owner: user:guest
+  definition:
+    $text: src/main/generated/openapi/openapi.yaml
+metadata:
+  name: account-api
+  tags:
+  - java
+  - quarkus
+--- 
 apiVersion: backstage.io/v1alpha1
 kind: Component
+spec:
+  type: application
+  lifecycle: production
+  owner: user:guest
+  providesApis:
+  - account-api
+  dependsOn:
+  - component:default/odm-client-config
+  - component:default/watson-client-config
 metadata:
   name: account
-  description: Stores specific information about accounts and trades in MongoDB/DocumentDB and Cloudant/CouchDB
+  labels:
+    app.kubernetes.io/name: account
+    app.kubernetes.io/version: 1.0-SNAPSHOT
+    app.quarkus.io/version: 3.23.3
   annotations:
-    github.com/project-slug: rtclauss/account
+    backstage.io/source-location: url:https://github.com/IBMStockTrader/account
   tags:
-    - java
-spec:
-  type: service
-  lifecycle: production
-  owner: guests
-  providesApis:
-    - account
-  dependencyOf:
-    - component:default/trader
+  - java
+  - quarkus
