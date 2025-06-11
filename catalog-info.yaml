@@ -25,6 +25,7 @@ kind: Component
 spec:
   type: application
   lifecycle: production
+  system: stocktrader
   owner: guests
   providesApis:
   - account-api
