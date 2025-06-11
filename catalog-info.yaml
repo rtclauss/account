@@ -31,7 +31,7 @@ metadata:
     app.quarkus.io/version: 3.23.3
   annotations:
     backstage.io/source-location: url:https://github.com/IBMStockTrader/account
-    github.com/project-slug: 'rtclauss/account'
+    github.com/project-slug: rtclauss/account
   tags:
   - java
   - quarkus
