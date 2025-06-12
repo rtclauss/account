@@ -32,9 +32,9 @@ spec:
   providesApis:
   - account-api
   # Temporarily remove these downstream deps.
-  # dependsOn:
-  # - component:default/odm-client-config
-  # - component:default/watson-client-config
+  dependsOn:
+  - component:default/odm-client-config
+  - component:default/watson-client-config
 metadata:
   name: account
   labels:
